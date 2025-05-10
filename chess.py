@@ -1,6 +1,7 @@
 from math import *
 from time import *
-
+import tkinter as tk
+import os
 
 
 plateau = [[[" ", ""] for _ in range(8)] for _ in range(8)]
@@ -12,6 +13,16 @@ for i in range(8):
     plateau[6][i] = ["P", "B"]
 
 
+plateau=[
+[["T","N"],["C","N"],["F","N"],["D","N"],["R","N"],["F","N"],["C","N"],["T","N"]],
+[["P","N"],["P","N"],[" ",""],["P","N"],["P","N"],["P","N"],["P","N"],["P","N"]],
+[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
+[[" ",""],[" ",""],["P","N"],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
+[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
+[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
+[["P","B"],["P","B"],["P","B"],["P","B"],["P","B"],["P","B"],["P","B"],["P","B"]],
+[["T","B"],["C","B"],["F","B"],["D","B"],["R","B"],["F","B"],["C","B"],["T","B"]],
+]
 
 """
 def draw_matrice(matrice,coord_x,coord_y,taille,color,draw_color_0):
@@ -35,6 +46,51 @@ def draw_matrice(matrice,coord_x,coord_y,taille,color,draw_color_0):
 def draw_plateau(plateau):
     for i in range(8):
         print(plateau[i])
+
+
+
+import tkinter as tk
+import os
+
+class AfficheurEchiquier:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("Échiquier")
+        self.board_size = 728
+        self.case_size = 91
+        self.canvas = tk.Canvas(self.root, width=self.board_size, height=self.board_size)
+        self.canvas.pack()
+        self.images = {}
+        self.fond_img = tk.PhotoImage(file=os.path.join("Pieces", "200.png"))
+        self.canvas.create_image(0, 0, image=self.fond_img, anchor=tk.NW)
+        self.correspondance = {
+            "P": "p", "T": "r", "C": "n",
+            "F": "b", "D": "q", "R": "k"
+        }
+        espacement_total = self.board_size - (self.case_size * 8)
+        espacement = espacement_total // 7
+        self.positions = [0]
+        for _ in range(1, 8):
+            self.positions.append(self.positions[-1] + self.case_size + espacement)
+
+    def afficher_plateau(self, plateau):
+        self.canvas.delete("pieces")  # Supprime les anciennes pièces uniquement
+        for i in range(8):
+            for j in range(8):
+                piece, couleur = plateau[i][j]
+                if piece != " ":
+                    prefix = "w" if couleur == "B" else "b"
+                    suffix = self.correspondance[piece]
+                    nom_fichier = f"{prefix}{suffix}.png"
+                    chemin_image = os.path.join("Pieces", nom_fichier)
+                    if nom_fichier not in self.images:
+                        self.images[nom_fichier] = tk.PhotoImage(file=chemin_image)
+                    x = self.positions[j]
+                    y = self.positions[i]
+                    self.canvas.create_image(x, y, image=self.images[nom_fichier], anchor=tk.NW, tags="pieces")
+
+    def lancer(self):
+        self.root.mainloop()
 
 """
 def draw_plateau(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame):
@@ -390,6 +446,8 @@ legal_cases_no_echecs_liste_copy=[]
 """draw_plateau(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame)
 """
 draw_plateau(plateau)
+afficheur = AfficheurEchiquier()
+afficheur.afficher_plateau(plateau)
 end_game = False
 while end_game == False:
     good_second_case = False
@@ -519,8 +577,8 @@ while end_game == False:
             """draw_string("échecs",238,50,(255,255,255),(50,50,50))"""
             print("échecs")
                 
-        else:
-            draw_string("            ",233,50,(255,255,255),(50,50,50))
+        """else:
+            draw_string("            ",233,50,(255,255,255),(50,50,50))"""
         pass
     else:
         if is_echecs(plateau, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible, True):
@@ -553,5 +611,5 @@ while end_game == False:
         """draw_string("Nul",238,50,(255,255,255),(50,50,50))"""
 
     """draw_plateau(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame)"""
-    draw_plateau(plateau)
+    afficheur.afficher_plateau(plateau)
     
