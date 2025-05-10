@@ -65,10 +65,26 @@ class AfficheurEchiquier:
         for _ in range(1, 8):
             self.positions.append(self.positions[-1] + self.case_size + espacement)
 
-    def afficher_plateau(self, plateau):
-        self.canvas.delete("pieces")  # Supprime les anciennes pièces uniquement
+    def afficher_plateau(self, plateau, colorier_x=None, colorier_y=None, colorier_x2=None, colorier_y2=None, colorier_x3=None, colorier_y3=None):
+        self.canvas.delete("pieces")  # Supprimer les anciennes pièces
+
+        # Redessiner le fond du plateau
+        self.canvas.create_image(0, 0, image=self.fond_img, anchor=tk.NW)
+
         for i in range(8):
             for j in range(8):
+                x = self.positions[j]
+                y = self.positions[i]
+
+                # Vérifier si on doit colorier cette case
+                if (colorier_x == j and colorier_y == i) or (colorier_x2 == j and colorier_y2 == i) or (colorier_x3 == j and colorier_y3 == i):
+                    # Couleur de fond en fonction de la couleur originale de la case
+                    if (i + j) % 2 == 0:
+                        color = "#f3f68a"  # case blanche modifiée
+                    else:
+                        color = "#b8ca4c"  # case noire modifiée
+                    self.canvas.create_rectangle(x, y, x + self.case_size, y + self.case_size, fill=color, outline=color)
+
                 piece, couleur = plateau[i][j]
                 if piece != " ":
                     prefix = "w" if couleur == "B" else "b"
@@ -77,9 +93,8 @@ class AfficheurEchiquier:
                     chemin_image = os.path.join("Pieces", nom_fichier)
                     if nom_fichier not in self.images:
                         self.images[nom_fichier] = tk.PhotoImage(file=chemin_image)
-                    x = self.positions[j]
-                    y = self.positions[i]
                     self.canvas.create_image(x, y, image=self.images[nom_fichier], anchor=tk.NW, tags="pieces")
+
     def attendre_click_case(self):
         self.click_coord = None
         self._clicked.set(False)
@@ -474,8 +489,8 @@ draw_plateau(plateau)
 afficheur = AfficheurEchiquier()
 afficheur.afficher_plateau(plateau)
 end_game = False
-
-
+last_two_cases = [[0,0],[0,0]]
+first_play = True
 
 
 
@@ -497,6 +512,7 @@ while end_game == False:
 
         good_selected_case=False
         while not good_selected_case:
+            afficheur.afficher_plateau(plateau)
             result=move(plateau,x_case,y_case,False,0,0,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)    
         
             y_case,n_case_1 = result[1],result[1]
@@ -506,8 +522,17 @@ while end_game == False:
                 good_selected_case = True
             print("case séléctioné : ",x_case," ",y_case)
 
+            if first_play:
+                afficheur.afficher_plateau(plateau, x_case, y_case)
+            else:
+                afficheur.afficher_plateau(plateau, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+
         selected_same_color = True
         while selected_same_color == True:
+            if first_play:
+                afficheur.afficher_plateau(plateau, x_case, y_case)
+            else:
+                afficheur.afficher_plateau(plateau, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
             result=move(plateau,x_case,y_case,True,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)    
             
             y_case,n_case_2 = result[1],result[1]
@@ -534,7 +559,10 @@ while end_game == False:
                 draw_case_piece(plateau,i[1],i[0],pion,tour,cavalier,fou,roi,dame)
             draw_case_back(l_case_1,n_case_1)
             draw_case_piece(plateau,l_case_1,n_case_1,pion,tour,cavalier,fou,roi,dame)"""
-            
+        if first_play:
+            afficheur.afficher_plateau(plateau, x_case, y_case)
+        else:
+            afficheur.afficher_plateau(plateau, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 
     
 
@@ -643,5 +671,7 @@ while end_game == False:
         """draw_string("Nul",238,50,(255,255,255),(50,50,50))"""
 
     """draw_plateau(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame)"""
-    afficheur.afficher_plateau(plateau)
-    
+   
+    last_two_cases = [[l_case_1,n_case_1],[l_case_2,n_case_2]]
+    afficheur.afficher_plateau(plateau, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+    first_play = False
