@@ -13,16 +13,7 @@ for i in range(8):
     plateau[6][i] = ["P", "B"]
 
 
-plateau=[
-[["T","N"],["C","N"],["F","N"],["D","N"],["R","N"],["F","N"],["C","N"],["T","N"]],
-[["P","N"],["P","N"],[" ",""],["P","N"],["P","N"],["P","N"],["P","N"],["P","N"]],
-[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
-[[" ",""],[" ",""],["P","N"],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
-[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
-[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
-[["P","B"],["P","B"],["P","B"],["P","B"],["P","B"],["P","B"],["P","B"],["P","B"]],
-[["T","B"],["C","B"],["F","B"],["D","B"],["R","B"],["F","B"],["C","B"],["T","B"]],
-]
+
 
 """
 def draw_matrice(matrice,coord_x,coord_y,taille,color,draw_color_0):
@@ -70,6 +61,7 @@ class AfficheurEchiquier:
         espacement_total = self.board_size - (self.case_size * 8)
         espacement = espacement_total // 7
         self.positions = [0]
+        self._clicked = tk.BooleanVar()
         for _ in range(1, 8):
             self.positions.append(self.positions[-1] + self.case_size + espacement)
 
@@ -88,6 +80,37 @@ class AfficheurEchiquier:
                     x = self.positions[j]
                     y = self.positions[i]
                     self.canvas.create_image(x, y, image=self.images[nom_fichier], anchor=tk.NW, tags="pieces")
+    def attendre_click_case(self):
+        self.click_coord = None
+        self._clicked.set(False)
+        self.root.bind("<Button-1>", self._on_click)
+        self.root.wait_variable(self._clicked) 
+        return self.click_coord  # retourne un tuple (x_case, y_case)
+
+    def _on_click(self, event):
+        x_pixel = event.x
+        y_pixel = event.y
+
+        # Conversion des coordonnées pixel vers coordonnées de case
+        for i, pos_x in enumerate(self.positions):
+            if x_pixel < pos_x + self.case_size:
+                x_case = i
+                break
+        else:
+            x_case = 7  # sécurité si clic en bout de plateau
+
+        for j, pos_y in enumerate(self.positions):
+            if y_pixel < pos_y + self.case_size:
+                y_case = j
+                break
+        else:
+            y_case = 7
+
+        self.click_coord = (x_case, y_case)
+
+        # Débloquer le wait_variable avec une variable temporaire
+        self.root.unbind("<Button-1>")
+        self._clicked.set(True)
 
     def lancer(self):
         self.root.mainloop()
@@ -286,9 +309,10 @@ def move(plateau,x_case,y_case,second_time,n_case_1,l_case_1,joueur,is_en_passan
 
 
     while good_second_selected_case == False:
-        x_case = int(input("x_case : "))
-        y_case = int(input("y_case : "))
-
+        #x_case = int(input("x_case : "))
+        #y_case = int(input("y_case : "))
+        x_case, y_case = afficheur.attendre_click_case()
+        
 
 
 
@@ -434,6 +458,7 @@ def est_nulle_par_manque_de_materiel(liste_blanc, liste_noire):
 
 
 
+
 """fill_rect(0,0,500,500,(50,50,50))
 """
 joueur="B"
@@ -449,6 +474,13 @@ draw_plateau(plateau)
 afficheur = AfficheurEchiquier()
 afficheur.afficher_plateau(plateau)
 end_game = False
+
+
+
+
+
+
+
 while end_game == False:
     good_second_case = False
 
