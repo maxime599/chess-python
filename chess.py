@@ -2,6 +2,8 @@ from math import *
 from time import *
 import tkinter as tk
 import os
+import copy
+
 
 
 plateau = [[[" ", ""] for _ in range(8)] for _ in range(8)]
@@ -14,16 +16,6 @@ for i in range(8):
 
 
 
-plateau=[
-[[" ",""],["R","B"],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
-[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
-[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
-[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
-[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
-[[" ",""],[" ",""],[" ",""],[" ",""],["R","N"],[" ",""],[" ",""],[" ",""]],
-[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
-[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
-]
 
 """
 def draw_matrice(matrice,coord_x,coord_y,taille,color,draw_color_0):
@@ -49,9 +41,6 @@ def draw_plateau(plateau):
         print(plateau[i])
 
 
-
-import tkinter as tk
-import os
 
 class AfficheurEchiquier:
     def __init__(self):
@@ -583,7 +572,8 @@ afficheur.afficher_plateau(plateau)
 end_game = False
 last_two_cases = [[0,0],[0,0]]
 first_play = True
-
+liste_plateaux = []
+liste_plateaux.append(copy.deepcopy(plateau))
 
 
 
@@ -738,6 +728,8 @@ while end_game == False:
         joueur="N"
     else:
         joueur="B"
+
+    liste_plateaux.append(copy.deepcopy(plateau))
     if can_moov(plateau,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible) == True:
         
         if is_echecs(plateau, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible, True):
@@ -780,12 +772,17 @@ while end_game == False:
         print("nul")
         afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
         """draw_string("Nul",238,50,(255,255,255),(50,50,50))"""
+    if liste_plateaux.count(plateau) == 3:
+        afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
+        end_game = True
+        print("nul")
 
     """draw_plateau(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame)"""
    
     last_two_cases = [[l_case_1,n_case_1],[l_case_2,n_case_2]]
     
     first_play = False
-    print("ici")
+    
+    
 afficheur.afficher_plateau(plateau)
 x_case, y_case = afficheur.attendre_click_case()
