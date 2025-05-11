@@ -14,6 +14,16 @@ for i in range(8):
 
 
 
+plateau=[
+[[" ",""],["R","B"],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
+[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
+[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
+[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
+[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
+[[" ",""],[" ",""],[" ",""],[" ",""],["R","N"],[" ",""],[" ",""],[" ",""]],
+[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
+[[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""],[" ",""]],
+]
 
 """
 def draw_matrice(matrice,coord_x,coord_y,taille,color,draw_color_0):
@@ -64,6 +74,9 @@ class AfficheurEchiquier:
         self._clicked = tk.BooleanVar()
         for _ in range(1, 8):
             self.positions.append(self.positions[-1] + self.case_size + espacement)
+        
+
+    
 
     def afficher_plateau(self, plateau, colorier_x=None, colorier_y=None, colorier_x2=None, colorier_y2=None, colorier_x3=None, colorier_y3=None):
         self.canvas.delete("pieces")  # Supprimer les anciennes pièces
@@ -106,26 +119,30 @@ class AfficheurEchiquier:
         x_pixel = event.x
         y_pixel = event.y
 
-        # Conversion des coordonnées pixel vers coordonnées de case
+        # Taille réelle du plateau (en pixels)
+        plateau_max_x = self.positions[-1] + self.case_size
+        plateau_max_y = self.positions[-1] + self.case_size
+
+        # Ignorer le clic si hors du plateau
+        if x_pixel >= plateau_max_x or y_pixel >= plateau_max_y:
+            return  # clic ignoré
+
+        # Trouver la colonne (x_case)
         for i, pos_x in enumerate(self.positions):
             if x_pixel < pos_x + self.case_size:
                 x_case = i
                 break
-        else:
-            x_case = 7  # sécurité si clic en bout de plateau
 
+        # Trouver la ligne (y_case)
         for j, pos_y in enumerate(self.positions):
             if y_pixel < pos_y + self.case_size:
                 y_case = j
                 break
-        else:
-            y_case = 7
 
         self.click_coord = (x_case, y_case)
-
-        # Débloquer le wait_variable avec une variable temporaire
         self.root.unbind("<Button-1>")
         self._clicked.set(True)
+
 
     def afficher_dot(self, plateau,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible):
     
@@ -142,6 +159,65 @@ class AfficheurEchiquier:
             if nom_fichier not in self.images:
                 self.images[nom_fichier] = tk.PhotoImage(file=chemin_image)
             self.canvas.create_image(x, y, image=self.images[nom_fichier], anchor=tk.NW, tags="pieces")
+
+    def afficher_resultat_fin_partie(self, plateau, resultat, joueur):
+        """
+        Affiche une image de victoire, défaite ou match nul en haut à droite des rois.
+        - resultat : 0 = victoire, 1 = match nul
+        - joueur : "B" ou "N"
+        """
+        def _afficher_images():
+            roi_blanc_pos = None
+            roi_noir_pos = None
+
+            for i in range(8):
+                for j in range(8):
+                    piece, couleur = plateau[i][j]
+                    if piece == "R":
+                        if couleur == "B":
+                            roi_blanc_pos = (i, j)
+                        elif couleur == "N":
+                            roi_noir_pos = (i, j)
+
+            if roi_blanc_pos is None or roi_noir_pos is None:
+                print("Erreur : roi blanc ou noir introuvable.")
+                return
+
+            noms = ["gagnant.png", "perdant.png", "nul - Copie.png"]
+            for nom in noms:
+                chemin = os.path.join("Pieces", nom)
+                if nom not in self.images:
+                    try:
+                        self.images[nom] = tk.PhotoImage(file=chemin)
+                    except Exception as e:
+                        print(f"Erreur chargement {nom} :", e)
+                        return
+
+            if resultat == 1:
+                for (i, j) in [roi_blanc_pos, roi_noir_pos]:
+                    x = self.positions[j] + self.case_size * 0.5
+                    y = self.positions[i] - self.case_size * 0.5
+                    if y<0:
+                        y=-26
+                    if x>682:
+                        x=664
+                    self.canvas.create_image(x, y, image=self.images["nul - Copie.png"], anchor=tk.NW, tags="resultat")
+            else:
+                gagnant = joueur
+                perdant = "N" if joueur == "B" else "B"
+                positions = {"B": roi_blanc_pos, "N": roi_noir_pos}
+                for nom_image, couleur in [("gagnant.png", gagnant), ("perdant.png", perdant)]:
+                    i, j = positions[couleur]
+                    x = self.positions[j] + self.case_size * 0.5
+                    y = self.positions[i] - self.case_size * 0.5
+                    if y<0:
+                        y=-26
+                    if x>682:
+                        x=664
+                    self.canvas.create_image(x, y, image=self.images[nom_image], anchor=tk.NW, tags="resultat")
+
+        self.root.after(100, _afficher_images)
+
 
     def lancer(self):
         self.root.mainloop()
@@ -532,6 +608,9 @@ while end_game == False:
                 afficheur.afficher_plateau(plateau)
             else:
                 afficheur.afficher_plateau(plateau, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+
+            
+            
             result=move(plateau,x_case,y_case,False,0,0,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)    
         
             y_case,n_case_1 = result[1],result[1]
@@ -675,12 +754,15 @@ while end_game == False:
             if joueur == "N":
                 """draw_string("des blancs",220,70,(255,255,255),(50,50,50))"""
                 print("des blancs")
+                afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="B")
             else:
                 """draw_string("des noirs",227,70,(255,255,255),(50,50,50))"""
                 print("des noirs")
+                afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="N")
         else:
             print("nul")
             """draw_string("Nul",238,50,(255,255,255),(50,50,50))"""
+            afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
         
         end_game = True
 
@@ -696,10 +778,14 @@ while end_game == False:
     if est_nulle_par_manque_de_materiel(liste_blanc,liste_noire):
         end_game = True
         print("nul")
+        afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
         """draw_string("Nul",238,50,(255,255,255),(50,50,50))"""
 
     """draw_plateau(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame)"""
    
     last_two_cases = [[l_case_1,n_case_1],[l_case_2,n_case_2]]
-    afficheur.afficher_plateau(plateau, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+    
     first_play = False
+    print("ici")
+afficheur.afficher_plateau(plateau)
+x_case, y_case = afficheur.attendre_click_case()
