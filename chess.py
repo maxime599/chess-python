@@ -127,6 +127,22 @@ class AfficheurEchiquier:
         self.root.unbind("<Button-1>")
         self._clicked.set(True)
 
+    def afficher_dot(self, plateau,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible):
+    
+        legal_cases_no_echecs_liste_copy = liste_moov(plateau,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)
+        for legals_cases in legal_cases_no_echecs_liste_copy:
+            row, col = legals_cases  # ligne, colonne
+            x = self.positions[col]
+            y = self.positions[row]
+            if plateau[legals_cases[0]][legals_cases[1]] == [" ",""]:
+                nom_fichier = "dot.png"
+            else:
+                nom_fichier = "prise.png"
+            chemin_image = os.path.join("Pieces", nom_fichier)
+            if nom_fichier not in self.images:
+                self.images[nom_fichier] = tk.PhotoImage(file=chemin_image)
+            self.canvas.create_image(x, y, image=self.images[nom_fichier], anchor=tk.NW, tags="pieces")
+
     def lancer(self):
         self.root.mainloop()
 
@@ -481,7 +497,7 @@ x_case = 0
 y_case = 0
 is_en_passant_possible = False
 en_passant_collone = 0
-is_rock_possible = [True,True,False,False]    #haut à gauche/haut à droite/bas à droite/bas à gauche
+is_rock_possible = [True,True,True,True]    #haut à gauche/haut à droite/bas à droite/bas à gauche
 legal_cases_no_echecs_liste_copy=[]
 """draw_plateau(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame)
 """
@@ -512,12 +528,17 @@ while end_game == False:
 
         good_selected_case=False
         while not good_selected_case:
-            afficheur.afficher_plateau(plateau)
+            if first_play:
+                afficheur.afficher_plateau(plateau)
+            else:
+                afficheur.afficher_plateau(plateau, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
             result=move(plateau,x_case,y_case,False,0,0,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)    
         
             y_case,n_case_1 = result[1],result[1]
             x_case,l_case_1 = result[0],result[0]
             
+            
+
             if plateau[n_case_1][l_case_1][0] != " " and plateau[n_case_1][l_case_1][1]==joueur:
                 good_selected_case = True
             print("case séléctioné : ",x_case," ",y_case)
@@ -525,7 +546,10 @@ while end_game == False:
             if first_play:
                 afficheur.afficher_plateau(plateau, x_case, y_case)
             else:
-                afficheur.afficher_plateau(plateau, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+                if plateau[x_case][y_case][1] == joueur:
+                    afficheur.afficher_plateau(plateau, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+                else:
+                    afficheur.afficher_plateau(plateau, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 
         selected_same_color = True
         while selected_same_color == True:
@@ -533,6 +557,10 @@ while end_game == False:
                 afficheur.afficher_plateau(plateau, x_case, y_case)
             else:
                 afficheur.afficher_plateau(plateau, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+
+            afficheur.afficher_dot(plateau,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)
+
+
             result=move(plateau,x_case,y_case,True,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)    
             
             y_case,n_case_2 = result[1],result[1]
@@ -542,7 +570,7 @@ while end_game == False:
             """while keydown(KEY_OK) == True or keydown(KEY_EXE) == True:
                 pass"""
 
-            if plateau[y_case][x_case][1] != joueur or [y_case,x_case] == [n_case_1,l_case_1]:
+            if plateau[y_case][x_case][1] != joueur or [y_case,x_case] == [n_case_1,l_case_1]:   
                 selected_same_color = False
             else:
                 """draw_case_back(l_case_1,n_case_1)
