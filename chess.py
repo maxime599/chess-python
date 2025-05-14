@@ -48,7 +48,7 @@ class AfficheurEchiquier:
         self.root.title("Échiquier")
         self.board_size = 728
         self.case_size = 91
-        self.canvas = tk.Canvas(self.root, width=self.board_size, height=self.board_size)
+        self.canvas = tk.Canvas(self.root, width=self.board_size+300, height=self.board_size)
         self.canvas.pack()
         self.images = {}
         self.fond_img = tk.PhotoImage(file=os.path.join("Pieces", "200.png"))
@@ -67,26 +67,31 @@ class AfficheurEchiquier:
 
     
 
-    def afficher_plateau(self, plateau, colorier_x=None, colorier_y=None, colorier_x2=None, colorier_y2=None, colorier_x3=None, colorier_y3=None):
+    def afficher_plateau(self, plateau, liste_blanc, liste_noire, colorier_x=None, colorier_y=None, colorier_x2=None, colorier_y2=None, colorier_x3=None, colorier_y3=None):
+
         self.canvas.delete("pieces")  # Supprimer les anciennes pièces
+        self.canvas.delete("ui")      # Supprimer les anciens textes UI
 
         # Redessiner le fond du plateau
         self.canvas.create_image(0, 0, image=self.fond_img, anchor=tk.NW)
 
+        # Affichage des pièces sur le plateau
         for i in range(8):
             for j in range(8):
                 x = self.positions[j]
                 y = self.positions[i]
 
-                # Vérifier si on doit colorier cette case
-                if (colorier_x == j and colorier_y == i) or (colorier_x2 == j and colorier_y2 == i) or (colorier_x3 == j and colorier_y3 == i):
-                    # Couleur de fond en fonction de la couleur originale de la case
+                # Vérifie si la case doit être coloriée
+                if (colorier_x == j and colorier_y == i) or \
+                (colorier_x2 == j and colorier_y2 == i) or \
+                (colorier_x3 == j and colorier_y3 == i):
                     if (i + j) % 2 == 0:
-                        color = "#f3f68a"  # case blanche modifiée
+                        color = "#f3f68a"
                     else:
-                        color = "#b8ca4c"  # case noire modifiée
+                        color = "#b8ca4c"
                     self.canvas.create_rectangle(x, y, x + self.case_size, y + self.case_size, fill=color, outline=color)
 
+                # Affichage de la pièce
                 piece, couleur = plateau[i][j]
                 if piece != " ":
                     prefix = "w" if couleur == "B" else "b"
@@ -96,6 +101,67 @@ class AfficheurEchiquier:
                     if nom_fichier not in self.images:
                         self.images[nom_fichier] = tk.PhotoImage(file=chemin_image)
                     self.canvas.create_image(x, y, image=self.images[nom_fichier], anchor=tk.NW, tags="pieces")
+
+        # Ajout des prises et score à droite
+        self.afficher_captures(liste_blanc, liste_noire)
+
+
+    def afficher_captures(self, liste_blanc, liste_noire):
+        # Valeurs des pièces pour le calcul du score
+        liste_total = {"P": 8, "C": 2, "F": 2, "T": 2, "D": 1, "R":1}
+        liste_blanc_prise = {"P": 0, "C": 0, "F": 0, "T": 0, "D": 0 ,"R":0}
+        liste_noire_prise = {"P": 0, "C": 0, "F": 0, "T": 0, "D": 0 ,"R":0}
+        for piece in ["D", "T", "F", "C", "P"]:
+            liste_blanc_prise[piece] = liste_total[piece] - liste_blanc[piece]
+            liste_noire_prise[piece] = liste_total[piece] - liste_noire[piece]
+
+        valeurs = {"P": 1, "C": 3, "F": 3, "T": 5, "D": 9}
+
+        def pieces_en_texte(liste, couleur):
+            lettre_to_caracteres_blanc = {"P":"♙", "C":"♘", "F":"♗", "T":"♖", "D":"♕"}
+            lettre_to_caracteres_noire = {"P":"♟", "C":"♞", "F":"♝", "T":"♜", "D":"♛"}
+            texte = ""
+            for piece in ["P", "C", "F", "T", "D"]:
+                if couleur == 0:
+                    if piece == "P" and liste[piece]>2:
+                        texte += "♟* " + str(liste[piece]) + " "
+                    else:
+                        texte += lettre_to_caracteres_noire[piece] * liste[piece]
+                else:
+                    if piece == "P" and liste[piece]>2:
+                        texte += "♙* " + str(liste[piece]) + " "
+                    else:
+                        texte += lettre_to_caracteres_blanc[piece] * liste[piece]
+            return texte
+
+        def calcul_score(liste1, liste2):
+            score1 = sum(valeurs[p] * liste1[p] for p in valeurs)
+            score2 = sum(valeurs[p] * liste2[p] for p in valeurs)
+            return score1 - score2
+
+        # Coordonnées d'affichage
+        x_text = self.board_size + 20
+        y_blanc = 50
+        y_noir = 200
+
+        # Texte pièces capturées
+        blanc_txt = pieces_en_texte(liste_blanc_prise, 0)
+        noir_txt = pieces_en_texte(liste_noire_prise, 1)
+
+        # Calcul score
+        score_blanc = calcul_score(liste_blanc_prise, liste_noire_prise)
+        score_noir = -score_blanc
+
+        # Affichage
+        self.canvas.create_text(x_text, y_blanc, anchor="nw", text="⚪ Blancs ont pris :", font=("Arial", 12), tags="ui")
+        self.canvas.create_text(x_text, y_blanc + 20, anchor="nw", text=blanc_txt or "—", font=("Arial", 16), tags="ui")
+        if score_blanc > 0:
+            self.canvas.create_text(x_text + 230, y_blanc + 20, anchor="nw", text=f"+{score_blanc}", font=("Arial", 14), fill="green", tags="ui")
+
+        self.canvas.create_text(x_text, y_noir, anchor="nw", text="⚫ Noirs ont pris :", font=("Arial", 12), tags="ui")
+        self.canvas.create_text(x_text, y_noir + 20, anchor="nw", text=noir_txt or "—", font=("Arial", 16), tags="ui")
+        if score_noir > 0:
+            self.canvas.create_text(x_text + 230, y_noir + 20, anchor="nw", text=f"+{score_noir}", font=("Arial", 14), fill="green", tags="ui")
 
     def attendre_click_case(self):
         self.click_coord = None
@@ -206,6 +272,43 @@ class AfficheurEchiquier:
                     self.canvas.create_image(x, y, image=self.images[nom_image], anchor=tk.NW, tags="resultat")
 
         self.root.after(100, _afficher_images)
+    def promotion(self, couleur):
+        choix_var = tk.StringVar()
+
+        # Nouvelle fenêtre popup
+        popup = tk.Toplevel(self.root)
+        popup.title("Choisissez une pièce pour la promotion")
+        popup.transient(self.root)
+        popup.grab_set()  # bloque la fenêtre principale
+
+        # Charger les images des pièces
+        pieces = {
+            "D": "q",
+            "T": "r",
+            "F": "b",
+            "C": "n"
+        }
+        images = {}
+
+        for code, suffixe in pieces.items():
+            prefixe = "w" if couleur == "B" else "b"
+            chemin = os.path.join("Pieces", f"{prefixe}{suffixe}.png")
+            images[code] = tk.PhotoImage(file=chemin)
+
+        # Fonction de sélection
+        def choisir_piece(code):
+            choix_var.set(code)
+            popup.destroy()
+
+        # Afficher les boutons avec images
+        for i, (code, image) in enumerate(images.items()):
+            bouton = tk.Button(popup, image=image, command=lambda c=code: choisir_piece(c))
+            bouton.image = image  # pour éviter que l'image soit supprimée par le garbage collector
+            bouton.grid(row=0, column=i, padx=10, pady=10)
+
+        # Attente du choix
+        self.root.wait_variable(choix_var)
+        return choix_var.get()
 
 
     def lancer(self):
@@ -527,13 +630,6 @@ def can_moov(plateau,joueur,is_en_passant_possible,en_passant_collone,is_rock_po
             return True
     return False
 
-def promotion():
-    piece = input("rang dans les pieces ['D','F','T','C']  :")
-
-    pieces = ["D","F","T","C"]
-
-    return pieces[piece]
-    
 def est_nulle_par_manque_de_materiel(liste_blanc, liste_noire):
     if liste_blanc == {"R": 1, "D": 0, "P": 0, "F": 0, "C": 0, "T": 0} and \
        liste_noire == {"R": 1, "D": 0, "P": 0, "F": 0, "C": 0, "T": 0}:
@@ -568,7 +664,9 @@ legal_cases_no_echecs_liste_copy=[]
 """
 draw_plateau(plateau)
 afficheur = AfficheurEchiquier()
-afficheur.afficher_plateau(plateau)
+liste_blanc={"R":1,"D":1,"P":8,"F":2,"C":2,"T":2}
+liste_noire={"R":1,"D":1,"P":8,"F":2,"C":2,"T":2}
+afficheur.afficher_plateau(plateau, liste_blanc, liste_noire)
 end_game = False
 last_two_cases = [[0,0],[0,0]]
 first_play = True
@@ -595,9 +693,9 @@ while end_game == False:
         good_selected_case=False
         while not good_selected_case:
             if first_play:
-                afficheur.afficher_plateau(plateau)
+                afficheur.afficher_plateau(plateau,liste_blanc, liste_noire)
             else:
-                afficheur.afficher_plateau(plateau, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+                afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 
             
             
@@ -613,19 +711,19 @@ while end_game == False:
             print("case séléctioné : ",x_case," ",y_case)
 
             if first_play:
-                afficheur.afficher_plateau(plateau, x_case, y_case)
+                afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case)
             else:
                 if plateau[x_case][y_case][1] == joueur:
-                    afficheur.afficher_plateau(plateau, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+                    afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
                 else:
-                    afficheur.afficher_plateau(plateau, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+                    afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 
         selected_same_color = True
         while selected_same_color == True:
             if first_play:
-                afficheur.afficher_plateau(plateau, x_case, y_case)
+                afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case)
             else:
-                afficheur.afficher_plateau(plateau, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+                afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 
             afficheur.afficher_dot(plateau,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)
 
@@ -657,9 +755,9 @@ while end_game == False:
             draw_case_back(l_case_1,n_case_1)
             draw_case_piece(plateau,l_case_1,n_case_1,pion,tour,cavalier,fou,roi,dame)"""
         if first_play:
-            afficheur.afficher_plateau(plateau, x_case, y_case)
+            afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case)
         else:
-            afficheur.afficher_plateau(plateau, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+            afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 
     
 
@@ -721,7 +819,7 @@ while end_game == False:
     
     if plateau[0][l_case_2][0] == "P" or plateau[7][l_case_2][0] == "P":
         """draw_plateau(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame)"""
-        plateau[n_case_2][l_case_2] = promotion(joueur)
+        plateau[n_case_2][l_case_2] = [afficheur.promotion(joueur),joueur]
         """fill_rect(235,75,70,70,(50,50,50))"""
 
     if joueur=="B":
@@ -784,5 +882,5 @@ while end_game == False:
     first_play = False
     
     
-afficheur.afficher_plateau(plateau)
+afficheur.afficher_plateau(plateau,liste_blanc, liste_noire)
 x_case, y_case = afficheur.attendre_click_case()
