@@ -16,26 +16,6 @@ for i in range(8):
 
 
 
-
-"""
-def draw_matrice(matrice,coord_x,coord_y,taille,color,draw_color_0):
-    palette_blanc={0:0,1:0,2:219,3:199,4:176,5:168,6:138}
-    palette_noire={0:0,1:0,2:90,3:74,4:59,5:42,6:24}
-
-
-    for i in range(len(matrice)):
-        for j in range(len(matrice[0])):
-            if not matrice[i][j] == 0 or draw_color_0 == True:
-
-                if color == "B":
-                    c = palette_blanc[matrice[i][j]]
-                    fill_rect(j*taille+coord_x,i*taille+coord_y,taille,taille,(c,c,c))
-
-                else:
-                    c = palette_noire[matrice[i][j]]
-                    fill_rect(j*taille+coord_x,i*taille+coord_y,taille,taille,(c,c,c))"""
-
-
 def draw_plateau(plateau):
     for i in range(8):
         print(plateau[i])
@@ -219,7 +199,6 @@ class AfficheurEchiquier:
         """
         Affiche une image de victoire, défaite ou match nul en haut à droite des rois.
         - resultat : 0 = victoire, 1 = match nul
-        - joueur : "B" ou "N"
         """
         def _afficher_images():
             roi_blanc_pos = None
@@ -314,38 +293,6 @@ class AfficheurEchiquier:
     def lancer(self):
         self.root.mainloop()
 
-"""
-def draw_plateau(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame):
-    
-    for i in range(8):
-        for j in range(8):
-            draw_case_back(i,j)
-            draw_case_piece(plateau,i,j,pion,tour,cavalier,fou,roi,dame)
-    draw_selection_generic(x_case, y_case, 27)
-
-def draw_case_back(i,j):
-    if i%2 == j%2:
-        c = (255,255,255)
-    else:
-        c = (75,115,153)
-    fill_rect(2+(i*27),2+(j*27),27,27,c)
-
-def draw_case_piece(plateau,j,i,pion,tour,cavalier,fou,roi,dame):
-    pieces = {"P":pion,"T":tour,"C":cavalier,"F":fou,"R":roi,"D":dame}
-    if plateau[i][j][0] != " ":
-        draw_matrice(pieces[plateau[i][j][0]],2+(j*27),2+(i*27),2,plateau[i][j][1],False)"""
-    
-
-
-
-"""def draw_selection_generic(x, y, size, offset_x=2, offset_y=2):
-    red = (255, 0, 0)
-    fill_rect(offset_x + (x * size), offset_y + (y * size), size, 1, red)
-    fill_rect(offset_x + (x * size) + (size - 1), offset_y + (y * size), 1, size, red)
-    fill_rect(offset_x + (x * size), offset_y + (y * size) + (size - 1), size, 1, red)
-    fill_rect(offset_x + (x * size), offset_y + (y * size), 1, size, red)
-
-"""
 def is_legal_pion(plateau,n_case_1,l_case_1,n_case_2,l_case_2,is_en_passant_possible,en_passant_collone):
     if plateau[n_case_1][l_case_1][1]=="B": #Pion blanc
         
@@ -451,52 +398,6 @@ def is_legal(plateau,n_case_1,l_case_1,n_case_2,l_case_2,joueur,is_en_passant_po
       return False
     return True      
 
-
-
-
-
-"""def move(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame,second_time,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible):
-    draw_case_back(x_case,y_case)
-    draw_case_piece(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame)
-    draw_selection_generic(x_case, y_case, 27)
-    
-    
-    legal_cases_no_echecs_liste_copy = liste_moov(plateau,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)
-    
-    good_second_selected_case = True
-
-
-    while not ((keydown(KEY_OK) == True or keydown(KEY_EXE) == True) and good_second_selected_case == True):
-        if (keydown(KEY_RIGHT) and x_case<7) or (keydown(KEY_DOWN) and y_case<7) or (keydown(KEY_LEFT) and x_case>0) or (keydown(KEY_UP) and y_case>0):
-            
-            mouvements = {
-            KEY_RIGHT: (1, 0),
-            KEY_LEFT: (-1, 0),
-            KEY_UP: (0, -1),
-            KEY_DOWN: (0, 1)
-                            }
-
-            for key, (dx, dy) in mouvements.items():
-                if keydown(key) and 0 <= x_case + dx < 8 and 0 <= y_case + dy < 8:
-                    draw_case_back(x_case,y_case)
-                    draw_case_piece(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame)
-                    x_case += dx
-                    y_case += dy
-                    break   
-   
-          
-            draw_selection_generic(x_case, y_case, 27)
-            sleep(0.1)
-
-        if second_time==True:
-            draw_selection_generic(l_case_1, n_case_1, 27)
-            for legals_cases in legal_cases_no_echecs_liste_copy:
-                fill_rect(2+legals_cases[1]*27+12,2+legals_cases[0]*27+12,3,3,(0,255,0))
-            if [y_case,x_case] in legal_cases_no_echecs_liste_copy or [y_case,x_case] == [n_case_1,l_case_1] or plateau[y_case][x_case][1] == joueur:
-                good_second_selected_case = True
-            else:
-                good_second_selected_case = False
-    return x_case,y_case,legal_cases_no_echecs_liste_copy"""
 
 
 def move(plateau,x_case,y_case,second_time,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible):
@@ -649,10 +550,6 @@ def est_nulle_par_manque_de_materiel(liste_blanc, liste_noire):
     return False
 
 
-
-
-"""fill_rect(0,0,500,500,(50,50,50))
-"""
 joueur="B"
 x_case = 0
 y_case = 0
@@ -660,8 +557,6 @@ is_en_passant_possible = False
 en_passant_collone = 0
 is_rock_possible = [True,True,True,True]    #haut à gauche/haut à droite/bas à droite/bas à gauche
 legal_cases_no_echecs_liste_copy=[]
-"""draw_plateau(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame)
-"""
 draw_plateau(plateau)
 afficheur = AfficheurEchiquier()
 liste_blanc={"R":1,"D":1,"P":8,"F":2,"C":2,"T":2}
@@ -685,10 +580,8 @@ while end_game == False:
         
         if joueur=="B":
             print("Au blancs de jouer")
-            """draw_string("Blanc",248,3,(255,255,255),(50,50,50))"""
         else:
             print("Au noirs de jouer")
-            """draw_string("Noir  ",248,3,(255,255,255),(50,50,50))"""
 
         good_selected_case=False
         while not good_selected_case:
@@ -734,14 +627,12 @@ while end_game == False:
             x_case,l_case_2 = result[0],result[0]
             legal_cases_no_echecs_liste_copy = result[2]
 
-            """while keydown(KEY_OK) == True or keydown(KEY_EXE) == True:
-                pass"""
+
 
             if plateau[y_case][x_case][1] != joueur or [y_case,x_case] == [n_case_1,l_case_1]:   
                 selected_same_color = False
             else:
-                """draw_case_back(l_case_1,n_case_1)
-                draw_case_piece(plateau,l_case_1,n_case_1,pion,tour,cavalier,fou,roi,dame)"""
+        
                 n_case_1 = y_case
                 l_case_1 = x_case
 
@@ -750,10 +641,6 @@ while end_game == False:
                     good_second_case = True
                     
 
-            """    draw_case_back(i[1],i[0])
-                draw_case_piece(plateau,i[1],i[0],pion,tour,cavalier,fou,roi,dame)
-            draw_case_back(l_case_1,n_case_1)
-            draw_case_piece(plateau,l_case_1,n_case_1,pion,tour,cavalier,fou,roi,dame)"""
         if first_play:
             afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case)
         else:
@@ -818,9 +705,7 @@ while end_game == False:
     plateau[n_case_1][l_case_1]=[" ",""]
     
     if plateau[0][l_case_2][0] == "P" or plateau[7][l_case_2][0] == "P":
-        """draw_plateau(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame)"""
         plateau[n_case_2][l_case_2] = [afficheur.promotion(joueur),joueur]
-        """fill_rect(235,75,70,70,(50,50,50))"""
 
     if joueur=="B":
         joueur="N"
@@ -831,27 +716,20 @@ while end_game == False:
     if can_moov(plateau,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible) == True:
         
         if is_echecs(plateau, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible, True):
-            """draw_string("échecs",238,50,(255,255,255),(50,50,50))"""
             print("échecs")
-                
-        """else:
-            draw_string("            ",233,50,(255,255,255),(50,50,50))"""
+     
         pass
     else:
         if is_echecs(plateau, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible, True):
             print("Victoire")
-            """draw_string("Victoire",230,50,(255,255,255),(50,50,50))"""
             if joueur == "N":
-                """draw_string("des blancs",220,70,(255,255,255),(50,50,50))"""
                 print("des blancs")
                 afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="B")
             else:
-                """draw_string("des noirs",227,70,(255,255,255),(50,50,50))"""
                 print("des noirs")
                 afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="N")
         else:
             print("nul")
-            """draw_string("Nul",238,50,(255,255,255),(50,50,50))"""
             afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
         
         end_game = True
@@ -869,13 +747,11 @@ while end_game == False:
         end_game = True
         print("nul")
         afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
-        """draw_string("Nul",238,50,(255,255,255),(50,50,50))"""
     if liste_plateaux.count(plateau) == 3:
         afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
         end_game = True
         print("nul")
 
-    """draw_plateau(plateau,x_case,y_case,pion,tour,cavalier,fou,roi,dame)"""
    
     last_two_cases = [[l_case_1,n_case_1],[l_case_2,n_case_2]]
     
