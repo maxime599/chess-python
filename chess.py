@@ -41,37 +41,56 @@ class AfficheurEchiquier:
         espacement = espacement_total // 7
         self.positions = [0]
         self._clicked = tk.BooleanVar()
+        self.sens = "B"  # "B" = blancs en bas, "N" = noirs en bas
         for _ in range(1, 8):
             self.positions.append(self.positions[-1] + self.case_size + espacement)
-        
+        # --- AJOUT DU BOUTON POUR TOURNER LE PLATEAU---
+        self.bouton_tourner = tk.Button(self.root, text="Tourner le plateau", command=self.tourner_plateau)
+        self.bouton_tourner.pack(side=tk.RIGHT, padx=10, pady=10)
+        # --- AJOUT DE LA CASE à COCHER---
+        self.auto_rotate = tk.BooleanVar(value=True)
+        self.check_auto_rotate = tk.Checkbutton(self.root, text="Rotation automatique", variable=self.auto_rotate)
+        self.check_auto_rotate.pack(side=tk.RIGHT, padx=10, pady=10)
 
+
+    def tourner_plateau(self):
+        self.sens = "N" if self.sens == "B" else "B"
+        # Il faut réafficher le plateau avec les bonnes listes (à adapter selon ton code principal)
+        # Exemple générique :
+        self.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
     
 
     def afficher_plateau(self, plateau, liste_blanc, liste_noire, colorier_x=None, colorier_y=None, colorier_x2=None, colorier_y2=None, colorier_x3=None, colorier_y3=None):
-
-        self.canvas.delete("pieces")  # Supprimer les anciennes pièces
-        self.canvas.delete("ui")      # Supprimer les anciens textes UI
-
-        # Redessiner le fond du plateau
+        self.canvas.delete("pieces")
+        self.canvas.delete("ui")
         self.canvas.create_image(0, 0, image=self.fond_img, anchor=tk.NW)
 
-        # Affichage des pièces sur le plateau
         for i in range(8):
             for j in range(8):
-                x = self.positions[j]
-                y = self.positions[i]
+                # Inversion des coordonnées si sens == "N"
+                if self.sens == "B":
+                    row, col = i, j
+                else:
+                    row, col = 7 - i, 7 - j
 
-                # Vérifie si la case doit être coloriée
-                if (colorier_x == j and colorier_y == i) or \
-                (colorier_x2 == j and colorier_y2 == i) or \
-                (colorier_x3 == j and colorier_y3 == i):
-                    if (i + j) % 2 == 0:
-                        color = "#f3f68a"
+                x = self.positions[col]
+                y = self.positions[row]
+
+                # Coloration des cases sélectionnées (adapter aussi)
+                def rotate(x, y):
+                    if self.sens == "B":
+                        return x, y
                     else:
-                        color = "#b8ca4c"
+                        return 7 - x, 7 - y
+
+                rx1, ry1 = rotate(colorier_x, colorier_y) if colorier_x is not None and colorier_y is not None else (None, None)
+                rx2, ry2 = rotate(colorier_x2, colorier_y2) if colorier_x2 is not None and colorier_y2 is not None else (None, None)
+                rx3, ry3 = rotate(colorier_x3, colorier_y3) if colorier_x3 is not None and colorier_y3 is not None else (None, None)
+
+                if (col == rx1 and row == ry1) or (col == rx2 and row == ry2) or (col == rx3 and row == ry3):
+                    color = "#f3f68a" if (row + col) % 2 == 0 else "#b8ca4c"
                     self.canvas.create_rectangle(x, y, x + self.case_size, y + self.case_size, fill=color, outline=color)
 
-                # Affichage de la pièce
                 piece, couleur = plateau[i][j]
                 if piece != " ":
                     prefix = "w" if couleur == "B" else "b"
@@ -82,9 +101,7 @@ class AfficheurEchiquier:
                         self.images[nom_fichier] = tk.PhotoImage(file=chemin_image)
                     self.canvas.create_image(x, y, image=self.images[nom_fichier], anchor=tk.NW, tags="pieces")
 
-        # Ajout des prises et score à droite
         self.afficher_captures(liste_blanc, liste_noire)
-
 
     def afficher_captures(self, liste_blanc, liste_noire):
         # Valeurs des pièces pour le calcul du score
@@ -153,40 +170,42 @@ class AfficheurEchiquier:
     def _on_click(self, event):
         x_pixel = event.x
         y_pixel = event.y
-
-        # Taille réelle du plateau (en pixels)
         plateau_max_x = self.positions[-1] + self.case_size
         plateau_max_y = self.positions[-1] + self.case_size
-
-        # Ignorer le clic si hors du plateau
         if x_pixel >= plateau_max_x or y_pixel >= plateau_max_y:
-            return  # clic ignoré
+            return
 
-        # Trouver la colonne (x_case)
         for i, pos_x in enumerate(self.positions):
             if x_pixel < pos_x + self.case_size:
-                x_case = i
+                col = i
                 break
-
-        # Trouver la ligne (y_case)
         for j, pos_y in enumerate(self.positions):
             if y_pixel < pos_y + self.case_size:
-                y_case = j
+                row = j
                 break
+
+        # Adapter selon le sens
+        if self.sens == "B":
+            x_case, y_case = col, row
+        else:
+            x_case, y_case = 7 - col, 7 - row
 
         self.click_coord = (x_case, y_case)
         self.root.unbind("<Button-1>")
         self._clicked.set(True)
 
 
-    def afficher_dot(self, plateau,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible):
-    
-        legal_cases_no_echecs_liste_copy = liste_moov(plateau,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)
+    def afficher_dot(self, plateau, n_case_1, l_case_1, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible):
+        legal_cases_no_echecs_liste_copy = liste_moov(plateau, n_case_1, l_case_1, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible)
         for legals_cases in legal_cases_no_echecs_liste_copy:
-            row, col = legals_cases  # ligne, colonne
+            # Appliquer la rotation comme dans afficher_plateau
+            if self.sens == "B":
+                row, col = legals_cases  # ligne, colonne
+            else:
+                row, col = 7 - legals_cases[0], 7 - legals_cases[1]
             x = self.positions[col]
             y = self.positions[row]
-            if plateau[legals_cases[0]][legals_cases[1]] == [" ",""]:
+            if plateau[legals_cases[0]][legals_cases[1]] == [" ", ""]:
                 nom_fichier = "dot.png"
             else:
                 nom_fichier = "prise.png"
@@ -711,7 +730,8 @@ while end_game == False:
         joueur="N"
     else:
         joueur="B"
-
+    if afficheur.auto_rotate.get():
+        afficheur.sens = joueur
     liste_plateaux.append(copy.deepcopy(plateau))
     if can_moov(plateau,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible) == True:
         
