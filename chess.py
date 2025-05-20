@@ -1,4 +1,4 @@
-from math import *
+import random
 from time import *
 import tkinter as tk
 import os
@@ -312,6 +312,45 @@ class AfficheurEchiquier:
     def lancer(self):
         self.root.mainloop()
 
+def choisir_mode():
+    accueil = tk.Tk()
+    accueil.title("Choix du mode")
+    mode_var = tk.StringVar(value="1v1")
+    couleur_var = tk.StringVar(value="B")
+
+    def choisir(val):
+        mode_var.set(val)
+        if val == "1v1":
+            accueil.destroy()
+        else:
+            # Affiche le choix de couleur si ordi sélectionné
+            frame_couleur.pack(pady=10)
+
+    def valider():
+        accueil.destroy()
+
+    label = tk.Label(accueil, text="Choisissez un mode de jeu :", font=("Arial", 16))
+    label.pack(padx=20, pady=20)
+
+    bouton_1v1 = tk.Button(accueil, text="1v1 (deux joueurs)", width=20, command=lambda: choisir("1v1"))
+    bouton_1v1.pack(pady=10)
+
+    bouton_ordi = tk.Button(accueil, text="Contre l'ordinateur", width=20, command=lambda: choisir("ordi"))
+    bouton_ordi.pack(pady=10)
+
+    # Choix de la couleur (caché par défaut)
+    frame_couleur = tk.Frame(accueil)
+    label_couleur = tk.Label(frame_couleur, text="Vous jouez :", font=("Arial", 12))
+    label_couleur.pack(side=tk.LEFT)
+    radio_blanc = tk.Radiobutton(frame_couleur, text="Blancs", variable=couleur_var, value="B")
+    radio_blanc.pack(side=tk.LEFT, padx=5)
+    radio_noir = tk.Radiobutton(frame_couleur, text="Noirs", variable=couleur_var, value="N")
+    radio_noir.pack(side=tk.LEFT, padx=5)
+    bouton_valider = tk.Button(frame_couleur, text="Valider", command=valider)
+    bouton_valider.pack(side=tk.LEFT, padx=10)
+
+    accueil.mainloop()
+    return mode_var.get(), couleur_var.get()
 def is_legal_pion(plateau,n_case_1,l_case_1,n_case_2,l_case_2,is_en_passant_possible,en_passant_collone):
     if plateau[n_case_1][l_case_1][1]=="B": #Pion blanc
         
@@ -568,8 +607,8 @@ def est_nulle_par_manque_de_materiel(liste_blanc, liste_noire):
 
     return False
 
-
-joueur="B"
+mode_jeu, couleur_joueur = choisir_mode()
+joueur = "B"
 x_case = 0
 y_case = 0
 is_en_passant_possible = False
@@ -591,79 +630,102 @@ liste_plateaux.append(copy.deepcopy(plateau))
 
 
 while end_game == False:
-    good_second_case = False
-
-    while good_second_case == False:
-
-        
-        
-        if joueur=="B":
-            print("Au blancs de jouer")
+    if mode_jeu == "ordi" and joueur != couleur_joueur:
+        if first_play:
+            afficheur.afficher_plateau(plateau,liste_blanc, liste_noire)
         else:
-            print("Au noirs de jouer")
+            afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 
-        good_selected_case=False
-        while not good_selected_case:
-            if first_play:
-                afficheur.afficher_plateau(plateau,liste_blanc, liste_noire)
-            else:
-                afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
-
-            
-            
-            result=move(plateau,x_case,y_case,False,0,0,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)    
+        # L'ordinateur joue un coup random pour les noirs
+        coups_possibles = []
+        for i in range(8):
+            for j in range(8):
+                if plateau[i][j][1] == joueur:
+                    moves = liste_moov(plateau, i, j, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible)
+                    for move1 in moves:
+                        #coups_possibles.append((i, j, move[0], move[1]))
+                        coups_possibles.append((i, j, move1[0], move1[1]))
+        if coups_possibles:
+            print("Coup possible pour l'ordinateur :", coups_possibles)
+            depart_i, depart_j, arrivee_i, arrivee_j = random.choice(coups_possibles)
+            # Simule le clic sur la pièce puis sur la destination
+            x_case, y_case = depart_j, depart_i
+            n_case_1, l_case_1 = depart_i, depart_j
+            n_case_2, l_case_2 = arrivee_i, arrivee_j
         
-            y_case,n_case_1 = result[1],result[1]
-            x_case,l_case_1 = result[0],result[0]
+            
+    else:
+        good_second_case = False
+        while good_second_case == False:
+
             
             
-
-            if plateau[n_case_1][l_case_1][0] != " " and plateau[n_case_1][l_case_1][1]==joueur:
-                good_selected_case = True
-            print("case séléctioné : ",x_case," ",y_case)
-
-            if first_play:
-                afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case)
+            if joueur=="B":
+                print("Au blancs de jouer")
             else:
-                if plateau[x_case][y_case][1] == joueur:
-                    afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+                print("Au noirs de jouer")
+
+            good_selected_case=False
+            while not good_selected_case:
+                if first_play:
+                    afficheur.afficher_plateau(plateau,liste_blanc, liste_noire)
                 else:
                     afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 
-        selected_same_color = True
-        while selected_same_color == True:
+                
+                result=move(plateau,x_case,y_case,False,0,0,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)    
+            
+                y_case,n_case_1 = result[1],result[1]
+                x_case,l_case_1 = result[0],result[0]
+                
+                
+
+                if plateau[n_case_1][l_case_1][0] != " " and plateau[n_case_1][l_case_1][1]==joueur:
+                    good_selected_case = True
+                print("case séléctioné : ",x_case," ",y_case)
+
+                if first_play:
+                    afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case)
+                else:
+                    if plateau[x_case][y_case][1] == joueur:
+                        afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+                    else:
+                        afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+
+            selected_same_color = True
+            while selected_same_color == True:
+                if first_play:
+                    afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case)
+                else:
+                    afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+
+                afficheur.afficher_dot(plateau,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)
+
+
+                result=move(plateau,x_case,y_case,True,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)    
+                
+                y_case,n_case_2 = result[1],result[1]
+                x_case,l_case_2 = result[0],result[0]
+                legal_cases_no_echecs_liste_copy = result[2]
+
+
+
+                if plateau[y_case][x_case][1] != joueur or [y_case,x_case] == [n_case_1,l_case_1]:   
+                    selected_same_color = False
+                else:
+            
+                    n_case_1 = y_case
+                    l_case_1 = x_case
+
+                for i in legal_cases_no_echecs_liste_copy:
+                    if i == [y_case,x_case]:
+                        good_second_case = True
+                        
+
             if first_play:
                 afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case)
             else:
                 afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
-
-            afficheur.afficher_dot(plateau,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)
-
-
-            result=move(plateau,x_case,y_case,True,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible)    
-            
-            y_case,n_case_2 = result[1],result[1]
-            x_case,l_case_2 = result[0],result[0]
-            legal_cases_no_echecs_liste_copy = result[2]
-
-
-
-            if plateau[y_case][x_case][1] != joueur or [y_case,x_case] == [n_case_1,l_case_1]:   
-                selected_same_color = False
-            else:
-        
-                n_case_1 = y_case
-                l_case_1 = x_case
-
-            for i in legal_cases_no_echecs_liste_copy:
-                if i == [y_case,x_case]:
-                    good_second_case = True
-                    
-
-        if first_play:
-            afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case)
-        else:
-            afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 
     
 
@@ -743,12 +805,15 @@ while end_game == False:
         if is_echecs(plateau, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible, True):
             print("Victoire")
             if joueur == "N":
+                afficheur.sens = "B"
                 print("des blancs")
                 afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="B")
             else:
+                afficheur.sens = "N"
                 print("des noirs")
                 afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="N")
         else:
+            afficheur.sens = "N" if joueur == "B" else "B"
             print("nul")
             afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
         
@@ -766,8 +831,10 @@ while end_game == False:
     if est_nulle_par_manque_de_materiel(liste_blanc,liste_noire):
         end_game = True
         print("nul")
+        afficheur.sens = "N" if joueur == "B" else "B"
         afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
     if liste_plateaux.count(plateau) == 3:
+        afficheur.sens = "N" if joueur == "B" else "B"
         afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
         end_game = True
         print("nul")
@@ -776,7 +843,6 @@ while end_game == False:
     last_two_cases = [[l_case_1,n_case_1],[l_case_2,n_case_2]]
     
     first_play = False
-    
-    
+      
 afficheur.afficher_plateau(plateau,liste_blanc, liste_noire)
 x_case, y_case = afficheur.attendre_click_case()
