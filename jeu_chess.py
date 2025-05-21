@@ -3,7 +3,8 @@ from time import *
 import tkinter as tk
 import os
 import copy
-
+import chess
+import chess.engine
 
 
 plateau = [[[" ", ""] for _ in range(8)] for _ in range(8)]
@@ -150,12 +151,12 @@ class AfficheurEchiquier:
         score_noir = -score_blanc
 
         # Affichage
-        self.canvas.create_text(x_text, y_blanc, anchor="nw", text="⚪ Blancs ont pris :", font=("Arial", 12), tags="ui")
+        self.canvas.create_text(x_text, y_blanc, anchor="nw", text="⚫ Noirs ont pris :", font=("Arial", 12), tags="ui")
         self.canvas.create_text(x_text, y_blanc + 20, anchor="nw", text=blanc_txt or "—", font=("Arial", 16), tags="ui")
         if score_blanc > 0:
             self.canvas.create_text(x_text + 230, y_blanc + 20, anchor="nw", text=f"+{score_blanc}", font=("Arial", 14), fill="green", tags="ui")
 
-        self.canvas.create_text(x_text, y_noir, anchor="nw", text="⚫ Noirs ont pris :", font=("Arial", 12), tags="ui")
+        self.canvas.create_text(x_text, y_noir, anchor="nw", text="⚪ Blancs ont pris :", font=("Arial", 12), tags="ui")
         self.canvas.create_text(x_text, y_noir + 20, anchor="nw", text=noir_txt or "—", font=("Arial", 16), tags="ui")
         if score_noir > 0:
             self.canvas.create_text(x_text + 230, y_noir + 20, anchor="nw", text=f"+{score_noir}", font=("Arial", 14), fill="green", tags="ui")
@@ -214,10 +215,11 @@ class AfficheurEchiquier:
                 self.images[nom_fichier] = tk.PhotoImage(file=chemin_image)
             self.canvas.create_image(x, y, image=self.images[nom_fichier], anchor=tk.NW, tags="pieces")
 
-    def afficher_resultat_fin_partie(self, plateau, resultat, joueur):
+    def afficher_resultat_fin_partie(self, plateau, resultat, joueur, sens_affichage=None):
         """
         Affiche une image de victoire, défaite ou match nul en haut à droite des rois.
         - resultat : 0 = victoire, 1 = match nul
+        - sens_affichage : "B" ou "N" (pour forcer l'orientation d'affichage)
         """
         def _afficher_images():
             roi_blanc_pos = None
@@ -246,14 +248,24 @@ class AfficheurEchiquier:
                         print(f"Erreur chargement {nom} :", e)
                         return
 
+            # Fonction pour tourner les coordonnées selon le sens voulu
+            def rotate(i, j, sens):
+                if sens == "B":
+                    return i, j
+                else:
+                    return 7 - i, 7 - j
+
+            sens = sens_affichage if sens_affichage is not None else self.sens
+
             if resultat == 1:
                 for (i, j) in [roi_blanc_pos, roi_noir_pos]:
-                    x = self.positions[j] + self.case_size * 0.5
-                    y = self.positions[i] - self.case_size * 0.5
-                    if y<0:
-                        y=-26
-                    if x>682:
-                        x=664
+                    ri, rj = rotate(i, j, sens)
+                    x = self.positions[rj] + self.case_size * 0.5
+                    y = self.positions[ri] - self.case_size * 0.5
+                    if y < 0:
+                        y = -26
+                    if x > 682:
+                        x = 664
                     self.canvas.create_image(x, y, image=self.images["nul - Copie.png"], anchor=tk.NW, tags="resultat")
             else:
                 gagnant = joueur
@@ -261,12 +273,13 @@ class AfficheurEchiquier:
                 positions = {"B": roi_blanc_pos, "N": roi_noir_pos}
                 for nom_image, couleur in [("gagnant.png", gagnant), ("perdant.png", perdant)]:
                     i, j = positions[couleur]
-                    x = self.positions[j] + self.case_size * 0.5
-                    y = self.positions[i] - self.case_size * 0.5
-                    if y<0:
-                        y=-26
-                    if x>682:
-                        x=664
+                    ri, rj = rotate(i, j, sens)
+                    x = self.positions[rj] + self.case_size * 0.5
+                    y = self.positions[ri] - self.case_size * 0.5
+                    if y < 0:
+                        y = -26
+                    if x > 682:
+                        x = 664
                     self.canvas.create_image(x, y, image=self.images[nom_image], anchor=tk.NW, tags="resultat")
 
         self.root.after(100, _afficher_images)
@@ -317,14 +330,29 @@ def choisir_mode():
     accueil.title("Choix du mode")
     mode_var = tk.StringVar(value="1v1")
     couleur_var = tk.StringVar(value="B")
+    temps_var = tk.StringVar(value="0.1")  # Pour joueur humain vs Stockfish
+    temps_b_var = tk.StringVar(value="0.1")  # Pour Stockfish blanc
+    temps_n_var = tk.StringVar(value="0.1")  # Pour Stockfish noir
 
     def choisir(val):
         mode_var.set(val)
         if val == "1v1":
+            frame_couleur.pack_forget()
+            frame_temps.pack_forget()
+            frame_temps_sf.pack_forget()
             accueil.destroy()
-        else:
-            # Affiche le choix de couleur si ordi sélectionné
+        elif val == "ordi":
             frame_couleur.pack(pady=10)
+            frame_temps.pack(pady=10)
+            frame_temps_sf.pack_forget()
+        elif val == "mon_ia":
+            frame_couleur.pack(pady=10)
+            frame_temps.pack_forget()
+            frame_temps_sf.pack_forget()
+        elif val == "sf_vs_sf":
+            frame_couleur.pack_forget()
+            frame_temps.pack_forget()
+            frame_temps_sf.pack(pady=10)
 
     def valider():
         accueil.destroy()
@@ -332,11 +360,17 @@ def choisir_mode():
     label = tk.Label(accueil, text="Choisissez un mode de jeu :", font=("Arial", 16))
     label.pack(padx=20, pady=20)
 
-    bouton_1v1 = tk.Button(accueil, text="1v1 (deux joueurs)", width=20, command=lambda: choisir("1v1"))
+    bouton_1v1 = tk.Button(accueil, text="1v1 (deux joueurs)", width=25, command=lambda: choisir("1v1"))
     bouton_1v1.pack(pady=10)
 
-    bouton_ordi = tk.Button(accueil, text="Contre l'ordinateur", width=20, command=lambda: choisir("ordi"))
+    bouton_ordi = tk.Button(accueil, text="Contre Stockfish", width=25, command=lambda: choisir("ordi"))
     bouton_ordi.pack(pady=10)
+
+    bouton_ia = tk.Button(accueil, text="Contre mon IA", width=25, command=lambda: choisir("mon_ia"))
+    bouton_ia.pack(pady=10)
+
+    bouton_sf_vs_sf = tk.Button(accueil, text="Stockfish vs Stockfish", width=25, command=lambda: choisir("sf_vs_sf"))
+    bouton_sf_vs_sf.pack(pady=10)
 
     # Choix de la couleur (caché par défaut)
     frame_couleur = tk.Frame(accueil)
@@ -346,11 +380,31 @@ def choisir_mode():
     radio_blanc.pack(side=tk.LEFT, padx=5)
     radio_noir = tk.Radiobutton(frame_couleur, text="Noirs", variable=couleur_var, value="N")
     radio_noir.pack(side=tk.LEFT, padx=5)
-    bouton_valider = tk.Button(frame_couleur, text="Valider", command=valider)
-    bouton_valider.pack(side=tk.LEFT, padx=10)
+
+    # Champ pour le temps de réflexion (mode ordi)
+    frame_temps = tk.Frame(accueil)
+    label_temps = tk.Label(frame_temps, text="Temps de réflexion de Stockfish (secondes) :")
+    label_temps.pack(side=tk.LEFT)
+    entry_temps = tk.Entry(frame_temps, textvariable=temps_var, width=5)
+    entry_temps.pack(side=tk.LEFT, padx=5)
+
+    # Champs pour Stockfish vs Stockfish
+    frame_temps_sf = tk.Frame(accueil)
+    label_temps_b = tk.Label(frame_temps_sf, text="Temps Stockfish Blancs (s) :")
+    label_temps_b.pack(side=tk.LEFT)
+    entry_temps_b = tk.Entry(frame_temps_sf, textvariable=temps_b_var, width=5)
+    entry_temps_b.pack(side=tk.LEFT, padx=5)
+    label_temps_n = tk.Label(frame_temps_sf, text="Temps Stockfish Noirs (s) :")
+    label_temps_n.pack(side=tk.LEFT)
+    entry_temps_n = tk.Entry(frame_temps_sf, textvariable=temps_n_var, width=5)
+    entry_temps_n.pack(side=tk.LEFT, padx=5)
+
+    bouton_valider = tk.Button(accueil, text="Valider", command=valider)
+    bouton_valider.pack(pady=20)
 
     accueil.mainloop()
-    return mode_var.get(), couleur_var.get()
+    return mode_var.get(), couleur_var.get(), float(temps_var.get()), float(temps_b_var.get()), float(temps_n_var.get())
+
 def is_legal_pion(plateau,n_case_1,l_case_1,n_case_2,l_case_2,is_en_passant_possible,en_passant_collone):
     if plateau[n_case_1][l_case_1][1]=="B": #Pion blanc
         
@@ -607,7 +661,67 @@ def est_nulle_par_manque_de_materiel(liste_blanc, liste_noire):
 
     return False
 
-mode_jeu, couleur_joueur = choisir_mode()
+def plateau_to_fen(plateau, joueur, is_rock_possible, is_en_passant_possible, en_passant_collone):
+    # Pièces
+    pieces = {"P":"P", "T":"R", "C":"N", "F":"B", "D":"Q", "R":"K"}
+    rows = []
+    for i in range(8):
+        row = ""
+        empty = 0
+        for j in range(8):
+            piece, couleur = plateau[i][j]
+            if piece == " ":
+                empty += 1
+            else:
+                if empty > 0:
+                    row += str(empty)
+                    empty = 0
+                symbol = pieces.get(piece, "")
+                if couleur == "N":
+                    symbol = symbol.lower()
+                row += symbol
+        if empty > 0:
+            row += str(empty)
+        rows.append(row)
+    fen_rows = "/".join(rows)
+
+    # Joueur
+    fen_joueur = "w" if joueur == "B" else "b"
+
+    # Roque
+    roque = ""
+    if is_rock_possible[2]:  # bas à droite (blancs roque roi)
+        roque += "K"
+    if is_rock_possible[3]:  # bas à gauche (blancs roque dame)
+        roque += "Q"
+    if is_rock_possible[0]:  # haut à gauche (noirs roque dame)
+        roque += "q"
+    if is_rock_possible[1]:  # haut à droite (noirs roque roi)
+        roque += "k"
+    if roque == "":
+        roque = "-"
+
+    # Prise en passant
+    if is_en_passant_possible:
+        # Trouver la rangée et colonne de la case en passant
+        # Pour les blancs, le pion noir vient de jouer de la 6 à la 4 (ligne 3 à 5 en index python)
+        # Pour les noirs, le pion blanc vient de jouer de la 1 à la 3 (ligne 4 à 2 en index python)
+        if joueur == "B":
+            row = 3  # ligne 4 en notation échiquier
+        else:
+            row = 4  # ligne 3 en notation échiquier
+        col = en_passant_collone
+        # Conversion colonne/ligne vers notation échiquier
+        file = chr(ord('a') + col)
+        rank = str(8 - row)
+        en_passant = file + rank
+    else:
+        en_passant = "-"
+
+    # Les deux derniers champs (demi-coup, numéro du coup) sont mis à 0 et 1 par défaut
+    fen = f"{fen_rows} {fen_joueur} {roque} {en_passant} 0 1"
+    return fen
+mode_jeu, couleur_joueur, temps_stockfish, temps_sf_b, temps_sf_n = choisir_mode()
 joueur = "B"
 x_case = 0
 y_case = 0
@@ -617,6 +731,9 @@ is_rock_possible = [True,True,True,True]    #haut à gauche/haut à droite/bas
 legal_cases_no_echecs_liste_copy=[]
 draw_plateau(plateau)
 afficheur = AfficheurEchiquier()
+if mode_jeu in ("ordi", "sf_vs_sf"):
+    afficheur.auto_rotate.set(False)
+    afficheur.sens = couleur_joueur
 liste_blanc={"R":1,"D":1,"P":8,"F":2,"C":2,"T":2}
 liste_noire={"R":1,"D":1,"P":8,"F":2,"C":2,"T":2}
 afficheur.afficher_plateau(plateau, liste_blanc, liste_noire)
@@ -625,12 +742,64 @@ last_two_cases = [[0,0],[0,0]]
 first_play = True
 liste_plateaux = []
 liste_plateaux.append(copy.deepcopy(plateau))
+engine = chess.engine.SimpleEngine.popen_uci("stockfish\stockfish-windows-x86-64-avx2.exe") 
 
 
 
 
 while end_game == False:
-    if mode_jeu == "ordi" and joueur != couleur_joueur:
+    if mode_jeu == "sf_vs_sf":
+        # Détermine le temps selon le joueur
+        if joueur == "B":
+            temps = temps_sf_b
+        else:
+            temps = temps_sf_n
+
+        if first_play:
+            afficheur.afficher_plateau(plateau, liste_blanc, liste_noire)
+        else:
+            afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+
+        fen = plateau_to_fen(plateau, joueur, is_rock_possible, is_en_passant_possible, en_passant_collone)
+        board = chess.Board(fen)
+        afficheur.root.update_idletasks()
+        afficheur.root.update()
+        result = engine.play(board, chess.engine.Limit(time=temps))
+        uci_move = result.move
+        depart_i = 7 - chess.square_rank(uci_move.from_square)
+        depart_j = chess.square_file(uci_move.from_square)
+        arrivee_i = 7 - chess.square_rank(uci_move.to_square)
+        arrivee_j = chess.square_file(uci_move.to_square)
+
+        x_case, y_case = depart_j, depart_i
+        n_case_1, l_case_1 = depart_i, depart_j
+        n_case_2, l_case_2 = arrivee_i, arrivee_j
+
+
+    elif mode_jeu == "ordi" and joueur != couleur_joueur:
+        if first_play:
+            afficheur.afficher_plateau(plateau,liste_blanc, liste_noire)
+        else:
+            afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+
+        fen = fen = plateau_to_fen(plateau, joueur, is_rock_possible, is_en_passant_possible, en_passant_collone)
+        board = chess.Board(fen)
+        afficheur.root.update_idletasks()
+        afficheur.root.update()
+        result = engine.play(board, chess.engine.Limit(time=temps_stockfish))  
+        uci_move = result.move  # ex: Move.from_uci('e2e4')
+        # Conversion UCI vers indices de ton plateau
+        depart_i = 7 - chess.square_rank(uci_move.from_square)
+        depart_j = chess.square_file(uci_move.from_square)
+        arrivee_i = 7 - chess.square_rank(uci_move.to_square)
+        arrivee_j = chess.square_file(uci_move.to_square)
+
+        x_case, y_case = depart_j, depart_i
+        n_case_1, l_case_1 = depart_i, depart_j
+        n_case_2, l_case_2 = arrivee_i, arrivee_j            
+
+
+    elif mode_jeu == "mon_ia" and joueur != couleur_joueur:
         if first_play:
             afficheur.afficher_plateau(plateau,liste_blanc, liste_noire)
         else:
@@ -643,16 +812,13 @@ while end_game == False:
                 if plateau[i][j][1] == joueur:
                     moves = liste_moov(plateau, i, j, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible)
                     for move1 in moves:
-                        #coups_possibles.append((i, j, move[0], move[1]))
                         coups_possibles.append((i, j, move1[0], move1[1]))
         if coups_possibles:
-            print("Coup possible pour l'ordinateur :", coups_possibles)
             depart_i, depart_j, arrivee_i, arrivee_j = random.choice(coups_possibles)
             # Simule le clic sur la pièce puis sur la destination
             x_case, y_case = depart_j, depart_i
             n_case_1, l_case_1 = depart_i, depart_j
             n_case_2, l_case_2 = arrivee_i, arrivee_j
-        
             
     else:
         good_second_case = False
@@ -768,6 +934,7 @@ while end_game == False:
 
         if plateau[n_case_1][l_case_1][0]=="R": #Rock
             is_rock_possible[0] = False
+            is_rock_possible[1] = False
         if (plateau[n_case_1][l_case_1][0]=="R"and n_case_1==0 and l_case_1==0) or n_case_2==0 and l_case_2==0:
             is_rock_possible[0] = False
         if (plateau[n_case_1][l_case_1][0]=="R"and n_case_1==0 and l_case_1==7) or n_case_2==0 and l_case_2==7:
@@ -785,8 +952,20 @@ while end_game == False:
     plateau[n_case_2][l_case_2]=plateau[n_case_1][l_case_1]
     plateau[n_case_1][l_case_1]=[" ",""]
     
+    promotion_piece = None
+    if mode_jeu in ("ordi", "sf_vs_sf") and joueur != couleur_joueur and 'uci_move' in locals():
+        if uci_move.promotion:
+            mapping = {1: "C", 2: "F", 3: "T", 4: "D"}
+            promotion_piece = mapping.get(uci_move.promotion, "D")
+    # Promotion IA Stockfish
     if plateau[0][l_case_2][0] == "P" or plateau[7][l_case_2][0] == "P":
-        plateau[n_case_2][l_case_2] = [afficheur.promotion(joueur),joueur]
+        if mode_jeu in ("ordi", "sf_vs_sf", "mon_ia") and joueur != couleur_joueur:
+            if promotion_piece:
+                plateau[n_case_2][l_case_2] = [promotion_piece, joueur]
+            else:
+                plateau[n_case_2][l_case_2] = ["D", joueur]
+        else:
+            plateau[n_case_2][l_case_2] = [afficheur.promotion(joueur), joueur]
 
     if joueur=="B":
         joueur="N"
@@ -805,13 +984,22 @@ while end_game == False:
         if is_echecs(plateau, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible, True):
             print("Victoire")
             if joueur == "N":
-                afficheur.sens = "B"
+                
                 print("des blancs")
-                afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="B")
+                if not afficheur.auto_rotate.get():
+                    afficheur.sens = couleur_joueur
+                    afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="B", sens_affichage = couleur_joueur)
+                else:
+                    afficheur.sens = "B"
+                    afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="B", sens_affichage = "B")
             else:
-                afficheur.sens = "N"
                 print("des noirs")
-                afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="N")
+                if not afficheur.auto_rotate.get():
+                    afficheur.sens = couleur_joueur
+                    afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="N", sens_affichage = couleur_joueur)
+                else:
+                    afficheur.sens = "N"
+                    afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="N", sens_affichage = "N")
         else:
             afficheur.sens = "N" if joueur == "B" else "B"
             print("nul")
@@ -839,10 +1027,11 @@ while end_game == False:
         end_game = True
         print("nul")
 
-   
+    if not afficheur.auto_rotate.get():
+        afficheur.sens = couleur_joueur
     last_two_cases = [[l_case_1,n_case_1],[l_case_2,n_case_2]]
     
     first_play = False
-      
-afficheur.afficher_plateau(plateau,liste_blanc, liste_noire)
+
+afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 x_case, y_case = afficheur.attendre_click_case()
