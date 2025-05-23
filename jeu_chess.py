@@ -6,6 +6,8 @@ import copy
 import chess
 import chess.engine
 import threading
+import socket
+import concurrent.futures
 
 plateau = [[[" ", ""] for _ in range(8)] for _ in range(8)]
 for i, piece in enumerate(["T", "C", "F", "D", "R", "F", "C", "T"]):
@@ -21,6 +23,33 @@ def draw_plateau(plateau):
     for i in range(8):
         print(plateau[i])
 
+
+class NetworkChess:
+    def __init__(self, is_host, host_ip=None, port=5000):
+        self.is_host = is_host
+        self.port = port
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if is_host:
+            self.sock.bind(('', port))
+            self.sock.listen(1)
+            print("En attente d'un joueur...")
+            self.conn, _ = self.sock.accept()
+            print("Joueur connecté !")
+        else:
+            self.sock.connect((host_ip, port))
+            self.conn = self.sock
+
+    def send_move(self, move):
+        # move doit être une chaîne (ex: "e2e4" ou indices)
+        self.conn.sendall(move.encode())
+
+    def receive_move(self):
+        data = self.conn.recv(1024)
+        return data.decode()
+
+    def close(self):
+        self.conn.close()
+        self.sock.close()
 
 
 class AfficheurEchiquier:
@@ -67,13 +96,12 @@ class AfficheurEchiquier:
         )
         self.bouton_tourner.pack(side=tk.RIGHT, padx=10, pady=10)
 
-        self.auto_rotate = tk.BooleanVar(value=True)
+        self.auto_rotate = tk.BooleanVar(value=False)
         self.check_auto_rotate = tk.Checkbutton(
             self.root, text="Rotation automatique", variable=self.auto_rotate,
             bg="#312e2b", fg="white", selectcolor="#312e2b", activebackground="gray20", activeforeground="white"
         )
         self.check_auto_rotate.pack(side=tk.RIGHT, padx=10, pady=10)
-
 
     def afficher_barre_eval(self, score):
         self._dernier_score = score  # mémorise le dernier score
@@ -394,9 +422,12 @@ def choisir_mode():
     accueil.title("Choix du mode")
     mode_var = tk.StringVar(value="1v1")
     couleur_var = tk.StringVar(value="B")
-    temps_var = tk.StringVar(value="0.1")  # Pour joueur humain vs Stockfish
-    temps_b_var = tk.StringVar(value="0.1")  # Pour Stockfish blanc
-    temps_n_var = tk.StringVar(value="0.1")  # Pour Stockfish noir
+    temps_var = tk.StringVar(value="0.1")
+    temps_b_var = tk.StringVar(value="0.1")
+    temps_n_var = tk.StringVar(value="0.1")
+    online_host_var = tk.StringVar(value="host")
+    online_couleur_var = tk.StringVar(value="B")
+    ip_var = tk.StringVar(value="192.168.1.80")
 
     def choisir(val):
         mode_var.set(val)
@@ -404,20 +435,44 @@ def choisir_mode():
             frame_couleur.pack_forget()
             frame_temps.pack_forget()
             frame_temps_sf.pack_forget()
+            frame_online.pack_forget()
             accueil.destroy()
         elif val == "ordi":
             frame_couleur.pack(pady=10)
             frame_temps.pack(pady=10)
             frame_temps_sf.pack_forget()
+            frame_online.pack_forget()
         elif val == "mon_ia":
             frame_couleur.pack(pady=10)
             frame_temps.pack_forget()
             frame_temps_sf.pack_forget()
+            frame_online.pack_forget()
         elif val == "sf_vs_sf":
             frame_couleur.pack_forget()
             frame_temps.pack_forget()
             frame_temps_sf.pack(pady=10)
+            frame_online.pack_forget()
+        elif val == "online":
+            frame_online.pack(pady=10)
+            frame_couleur.pack_forget()
+            frame_temps.pack_forget()
+            frame_temps_sf.pack_forget()
+            # Désactive le choix de couleur si on veut rejoindre
+            if online_host_var.get() == "join":
+                radio_online_blanc.config(state=tk.DISABLED)
+                radio_online_noir.config(state=tk.DISABLED)
+            else:
+                radio_online_blanc.config(state=tk.NORMAL)
+                radio_online_noir.config(state=tk.NORMAL)
+    def on_online_host_change(*args):
+        if online_host_var.get() == "join":
+            radio_online_blanc.config(state=tk.DISABLED)
+            radio_online_noir.config(state=tk.DISABLED)
+        else:
+            radio_online_blanc.config(state=tk.NORMAL)
+            radio_online_noir.config(state=tk.NORMAL)
 
+    online_host_var.trace("w", on_online_host_change)
     def valider():
         accueil.destroy()
 
@@ -435,6 +490,9 @@ def choisir_mode():
 
     bouton_sf_vs_sf = tk.Button(accueil, text="Stockfish vs Stockfish", width=25, command=lambda: choisir("sf_vs_sf"))
     bouton_sf_vs_sf.pack(pady=10)
+
+    bouton_online = tk.Button(accueil, text="Jouer en ligne (ami)", width=25, command=lambda: choisir("online"))
+    bouton_online.pack(pady=10)
 
     # Choix de la couleur (caché par défaut)
     frame_couleur = tk.Frame(accueil)
@@ -463,11 +521,32 @@ def choisir_mode():
     entry_temps_n = tk.Entry(frame_temps_sf, textvariable=temps_n_var, width=5)
     entry_temps_n.pack(side=tk.LEFT, padx=5)
 
+    # Frame pour le mode online
+    frame_online = tk.Frame(accueil)
+    label_online = tk.Label(frame_online, text="Mode en ligne :")
+    label_online.pack()
+    radio_host = tk.Radiobutton(frame_online, text="Héberger la partie", variable=online_host_var, value="host")
+    radio_host.pack(anchor=tk.W)
+    radio_join = tk.Radiobutton(frame_online, text="Rejoindre une partie", variable=online_host_var, value="join")
+    radio_join.pack(anchor=tk.W)
+    label_online_couleur = tk.Label(frame_online, text="Votre couleur (si hôte) :")
+    label_online_couleur.pack()
+    radio_online_blanc = tk.Radiobutton(frame_online, text="Blancs", variable=online_couleur_var, value="B")
+    radio_online_blanc.pack(anchor=tk.W)
+    radio_online_noir = tk.Radiobutton(frame_online, text="Noirs", variable=online_couleur_var, value="N")
+    radio_online_noir.pack(anchor=tk.W)
+    label_ip = tk.Label(frame_online, text="Adresse IP de l'hôte (si rejoindre) :")
+    label_ip.pack()
+    entry_ip = tk.Entry(frame_online, textvariable=ip_var, width=20)
+    entry_ip.pack()
+
     bouton_valider = tk.Button(accueil, text="Valider", command=valider)
     bouton_valider.pack(pady=20)
 
     accueil.mainloop()
-    return mode_var.get(), couleur_var.get(), float(temps_var.get()), float(temps_b_var.get()), float(temps_n_var.get())
+    # Retourne les infos nécessaires pour le mode online
+    return (mode_var.get(), couleur_var.get(), float(temps_var.get()), float(temps_b_var.get()), float(temps_n_var.get()),
+            online_host_var.get(), online_couleur_var.get(), ip_var.get())
 
 def is_legal_pion(plateau,n_case_1,l_case_1,n_case_2,l_case_2,is_en_passant_possible,en_passant_collone):
     if plateau[n_case_1][l_case_1][1]=="B": #Pion blanc
@@ -804,7 +883,6 @@ def analyse_continue(afficheur, engine):
     def worker():
         global plateau, joueur, is_rock_possible, is_en_passant_possible, en_passant_collone, end_game
         while not end_game:
-            print("Boucle analyse_continue")
             try:
                 """if not hasattr(engine, "process") or engine.process is None:
                     break"""
@@ -812,7 +890,6 @@ def analyse_continue(afficheur, engine):
                 board = chess.Board(fen)
                 info = engine.analyse(board, chess.engine.Limit(time=0.2))
                 score = info["score"].white().score(mate_score=10000)
-                print("Mise à jour barre avec score :", score)  # <-- ce print doit apparaître toutes les 0.3s
                 afficheur.root.after(0, afficheur.afficher_barre_eval, score)
             except Exception as e:
                 print("Erreur dans analyse_continue :", e)
@@ -842,54 +919,70 @@ def jouer_tour():
     #afficheur.afficher_barre_eval(score)
         
     if mode_jeu == "sf_vs_sf":
-        # Détermine le temps selon le joueur
-        if joueur == "B":
-            temps = temps_sf_b
-        else:
-            temps = temps_sf_n
+        recommencer = True
+        while recommencer:
+            # Détermine le temps selon le joueur
+            if joueur == "B":
+                temps = temps_sf_b
+            else:
+                temps = temps_sf_n
 
-        if first_play:
-            afficheur.afficher_plateau(plateau, liste_blanc, liste_noire)
-        else:
-            afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+            if first_play:
+                afficheur.afficher_plateau(plateau, liste_blanc, liste_noire)
+            else:
+                afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 
-        fen = plateau_to_fen(plateau, joueur, is_rock_possible, is_en_passant_possible, en_passant_collone)
-        board = chess.Board(fen)
-        afficheur.root.update_idletasks()
-        afficheur.root.update()
-        result = engine.play(board, chess.engine.Limit(time=temps))
-        uci_move = result.move
-        depart_i = 7 - chess.square_rank(uci_move.from_square)
-        depart_j = chess.square_file(uci_move.from_square)
-        arrivee_i = 7 - chess.square_rank(uci_move.to_square)
-        arrivee_j = chess.square_file(uci_move.to_square)
+            fen = plateau_to_fen(plateau, joueur, is_rock_possible, is_en_passant_possible, en_passant_collone)
+            board = chess.Board(fen)
+            afficheur.root.update_idletasks()
+            afficheur.root.update()
+            recommencer = False
+            try:
+                result = engine.play(board, chess.engine.Limit(time=temps))
+            except concurrent.futures.CancelledError:
+                recommencer = True
+                print("Coup annulé, réessayer")
+            if not recommencer:
+                uci_move = result.move
+                depart_i = 7 - chess.square_rank(uci_move.from_square)
+                depart_j = chess.square_file(uci_move.from_square)
+                arrivee_i = 7 - chess.square_rank(uci_move.to_square)
+                arrivee_j = chess.square_file(uci_move.to_square)
 
-        x_case, y_case = depart_j, depart_i
-        n_case_1, l_case_1 = depart_i, depart_j
-        n_case_2, l_case_2 = arrivee_i, arrivee_j
+                x_case, y_case = depart_j, depart_i
+                n_case_1, l_case_1 = depart_i, depart_j
+                n_case_2, l_case_2 = arrivee_i, arrivee_j
 
 
     elif mode_jeu == "ordi" and joueur != couleur_joueur:
-        if first_play:
-            afficheur.afficher_plateau(plateau,liste_blanc, liste_noire)
-        else:
-            afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+        recommencer = True
+        while recommencer:
+            if first_play:
+                afficheur.afficher_plateau(plateau,liste_blanc, liste_noire)
+            else:
+                afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 
-        fen = fen = plateau_to_fen(plateau, joueur, is_rock_possible, is_en_passant_possible, en_passant_collone)
-        board = chess.Board(fen)
-        afficheur.root.update_idletasks()
-        afficheur.root.update()
-        result = engine.play(board, chess.engine.Limit(time=temps_stockfish))  
-        uci_move = result.move  # ex: Move.from_uci('e2e4')
-        # Conversion UCI vers indices de ton plateau
-        depart_i = 7 - chess.square_rank(uci_move.from_square)
-        depart_j = chess.square_file(uci_move.from_square)
-        arrivee_i = 7 - chess.square_rank(uci_move.to_square)
-        arrivee_j = chess.square_file(uci_move.to_square)
+            fen = plateau_to_fen(plateau, joueur, is_rock_possible, is_en_passant_possible, en_passant_collone)
+            board = chess.Board(fen)
+            afficheur.root.update_idletasks()
+            afficheur.root.update()
+            recommencer = False
+            try:
+                result = engine.play(board, chess.engine.Limit(time=temps_stockfish))
+            except concurrent.futures.CancelledError:
+                recommencer = True
+                print("Coup annulé, réessayer")
+            if not recommencer:
+                uci_move = result.move
+                # Conversion UCI vers indices de ton plateau
+                depart_i = 7 - chess.square_rank(uci_move.from_square)
+                depart_j = chess.square_file(uci_move.from_square)
+                arrivee_i = 7 - chess.square_rank(uci_move.to_square)
+                arrivee_j = chess.square_file(uci_move.to_square)
 
-        x_case, y_case = depart_j, depart_i
-        n_case_1, l_case_1 = depart_i, depart_j
-        n_case_2, l_case_2 = arrivee_i, arrivee_j            
+                x_case, y_case = depart_j, depart_i
+                n_case_1, l_case_1 = depart_i, depart_j
+                n_case_2, l_case_2 = arrivee_i, arrivee_j   
 
 
     elif mode_jeu == "mon_ia" and joueur != couleur_joueur:
@@ -913,7 +1006,7 @@ def jouer_tour():
             n_case_1, l_case_1 = depart_i, depart_j
             n_case_2, l_case_2 = arrivee_i, arrivee_j
             
-    else:
+    elif mode_jeu == "1v1" or mode_jeu == "ordi" and joueur == couleur_joueur or mode_jeu == "mon_ia" and joueur == couleur_joueur:
         good_second_case = False
         while good_second_case == False:
 
@@ -986,7 +1079,61 @@ def jouer_tour():
             else:
                 afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 
-    
+    elif mode_jeu == "online":
+        afficheur.sens = couleur_joueur
+        afficheur.afficher_plateau(plateau, liste_blanc, liste_noire)
+        afficheur.root.update_idletasks()
+        afficheur.root.update()
+        print("joueur, couleur_joueur: ", joueur, couleur_joueur)
+        mon_tour = (joueur == couleur_joueur)#couleur_joueur_online
+        if mon_tour:
+            # Joueur local joue
+            good_second_case = False
+            while not good_second_case:
+                if joueur == "B":
+                    print("À toi (blancs)")
+                else:
+                    print("À toi (noirs)")
+                good_selected_case = False
+                while not good_selected_case:
+                    if first_play:
+                        afficheur.afficher_plateau(plateau, liste_blanc, liste_noire)
+                    else:
+                        afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+                    result = move(plateau, x_case, y_case, False, 0, 0, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible)
+                    y_case, n_case_1 = result[1], result[1]
+                    x_case, l_case_1 = result[0], result[0]
+                    if plateau[n_case_1][l_case_1][0] != " " and plateau[n_case_1][l_case_1][1] == joueur:
+                        good_selected_case = True
+                selected_same_color = True
+                while selected_same_color:
+                    if first_play:
+                        afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, x_case, y_case)
+                    else:
+                        afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, x_case, y_case, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+                    afficheur.afficher_dot(plateau, n_case_1, l_case_1, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible)
+                    result = move(plateau, x_case, y_case, True, n_case_1, l_case_1, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible)
+                    y_case, n_case_2 = result[1], result[1]
+                    x_case, l_case_2 = result[0], result[0]
+                    legal_cases_no_echecs_liste_copy = result[2]
+                    if plateau[y_case][x_case][1] != joueur or [y_case, x_case] == [n_case_1, l_case_1]:
+                        selected_same_color = False
+                    else:
+                        n_case_1 = y_case
+                        l_case_1 = x_case
+                    for i in legal_cases_no_echecs_liste_copy:
+                        if i == [y_case, x_case]:
+                            good_second_case = True
+            # Envoie le coup au format "n_case_1,l_case_1,n_case_2,l_case_2"
+            """move_str = f"{n_case_1},{l_case_1},{n_case_2},{l_case_2}"
+            net.send_move(move_str)"""
+        else:
+            print("En attente du coup de l'adversaire...")
+            move_str = net.receive_move()
+            n_case_1, l_case_1, n_case_2, l_case_2 = map(int, move_str.split(","))
+            x_case, y_case = l_case_2, n_case_2
+
+        
 
     if (is_en_passant_possible == True and n_case_1==3 and l_case_2 == en_passant_collone and plateau[n_case_1][l_case_1][0]=="P" and joueur == "B") or (is_en_passant_possible == True and n_case_1==4 and l_case_2 == en_passant_collone and plateau[n_case_1][l_case_1][0]=="P" and joueur == "N"):
         plateau[n_case_1][l_case_2]=[" ",""]
@@ -1124,8 +1271,6 @@ def jouer_tour():
     if liste_plateaux.count(plateau) == 3:
         if afficheur.auto_rotate.get():
             afficheur.sens = "N" if joueur == "B" else "B"
-        else:
-            afficheur.sens = joueur
         afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
         afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
         end_game = True
@@ -1134,14 +1279,50 @@ def jouer_tour():
     if not afficheur.auto_rotate.get():
         afficheur.sens = couleur_joueur
     
-    
+    if mode_jeu == "online":
+        if mon_tour:
+            afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
+            move_str = f"{n_case_1},{l_case_1},{n_case_2},{l_case_2}"
+            net.send_move(move_str)
     first_play = False
-    
     afficheur.root.after(10, jouer_tour)
  
 
-mode_jeu, couleur_joueur, temps_stockfish, temps_sf_b, temps_sf_n = choisir_mode()
-joueur = "B"
+mode_jeu, couleur_joueur, temps_stockfish, temps_sf_b, temps_sf_n, online_host, online_couleur, ip_ami = choisir_mode()
+
+print("temps_sf_b", temps_sf_b)
+print("temps_sf_n", temps_sf_n)
+print("online_couleur", online_couleur)
+if mode_jeu == "online":
+    is_host = (online_host == "host")
+    if is_host:
+        couleur_joueur_online = online_couleur
+
+    else:
+        # Le client prend TOUJOURS l'opposé de la couleur choisie par le host
+
+        couleur_joueur = "B" if online_couleur == "N" else "N"
+        
+        # Et on ignore la valeur du menu côté client !
+        #print("Couleur choisie par le host :", couleur_joueur_online)
+        print("couleur_joueur :", couleur_joueur)
+    net = NetworkChess(is_host, ip_ami if not is_host else None)
+
+else:
+    net = None
+    couleur_joueur_online = None
+if mode_jeu == "sf_vs_sf":
+    joueur = "B"
+elif mode_jeu == "ordi":
+    joueur = "B"  # pour que ce soit le joueur humain qui commence
+elif mode_jeu == "online":
+    joueur = "B"
+else:
+    joueur = "B"
+
+
+
+
 x_case = 0
 y_case = 0
 is_en_passant_possible = False
