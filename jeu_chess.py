@@ -5,7 +5,7 @@ import os
 import copy
 import chess
 import chess.engine
-
+import threading
 
 plateau = [[[" ", ""] for _ in range(8)] for _ in range(8)]
 for i, piece in enumerate(["T", "C", "F", "D", "R", "F", "C", "T"]):
@@ -25,15 +25,24 @@ def draw_plateau(plateau):
 
 class AfficheurEchiquier:
     def __init__(self):
+        self._dernier_score = 0
+        self.x_offset = 40  # Largeur de la barre d'évaluation
         self.root = tk.Tk()
         self.root.title("Échiquier")
+        self.root.configure(bg="#312e2b")  # Fond noir pour la fenêtre
         self.board_size = 728
         self.case_size = 91
-        self.canvas = tk.Canvas(self.root, width=self.board_size+300, height=self.board_size)
+        self.canvas = tk.Canvas(
+            self.root,
+            width=self.board_size + 300 + self.x_offset,
+            height=self.board_size,
+            bg="#312e2b",                # <-- Ajoute ce paramètre
+            highlightthickness=0       # <-- Enlève la bordure grise
+        )
         self.canvas.pack()
         self.images = {}
         self.fond_img = tk.PhotoImage(file=os.path.join("Pieces", "200.png"))
-        self.canvas.create_image(0, 0, image=self.fond_img, anchor=tk.NW)
+        self.canvas.create_image(self.x_offset, 0, image=self.fond_img, anchor=tk.NW)
         self.correspondance = {
             "P": "p", "T": "r", "C": "n",
             "F": "b", "D": "q", "R": "k"
@@ -43,17 +52,62 @@ class AfficheurEchiquier:
         self.positions = [0]
         self._clicked = tk.BooleanVar()
         self.sens = "B"  # "B" = blancs en bas, "N" = noirs en bas
+        self.positions_x = [self.x_offset]
         for _ in range(1, 8):
-            self.positions.append(self.positions[-1] + self.case_size + espacement)
+            self.positions_x.append(self.positions_x[-1] + self.case_size + espacement)
+
+        self.positions_y = [0]
+        for _ in range(1, 8):
+            self.positions_y.append(self.positions_y[-1] + self.case_size + espacement)
         # --- AJOUT DU BOUTON POUR TOURNER LE PLATEAU---
-        self.bouton_tourner = tk.Button(self.root, text="Tourner le plateau", command=self.tourner_plateau)
+        
+        self.bouton_tourner = tk.Button(
+            self.root, text="Tourner le plateau", command=self.tourner_plateau,
+            bg="#312e2b", fg="white", activebackground="gray20", activeforeground="white"
+        )
         self.bouton_tourner.pack(side=tk.RIGHT, padx=10, pady=10)
-        # --- AJOUT DE LA CASE à COCHER---
+
         self.auto_rotate = tk.BooleanVar(value=True)
-        self.check_auto_rotate = tk.Checkbutton(self.root, text="Rotation automatique", variable=self.auto_rotate)
+        self.check_auto_rotate = tk.Checkbutton(
+            self.root, text="Rotation automatique", variable=self.auto_rotate,
+            bg="#312e2b", fg="white", selectcolor="#312e2b", activebackground="gray20", activeforeground="white"
+        )
         self.check_auto_rotate.pack(side=tk.RIGHT, padx=10, pady=10)
 
 
+    def afficher_barre_eval(self, score):
+        self._dernier_score = score  # mémorise le dernier score
+        self.canvas.delete("evalbar")
+        max_score = 10
+        min_score = -10
+        score_aff = max(min(score / 100, max_score), min_score)  # centipions -> pions
+        h_total = self.board_size
+        y_blanc = int(h_total * (0.5 - score_aff / (2 * max_score)))
+        #y_noir = h_total - y_blanc
+        x = 0
+        w = self.x_offset
+        # Barre blanche (en haut si score négatif)
+        self.canvas.create_rectangle(x, 0, x + w, y_blanc, fill="#222", outline="", tags="evalbar")
+        # Barre noire (en bas si score positif)
+        self.canvas.create_rectangle(x, y_blanc, x + w, h_total, fill="#f0f0f0", outline="", tags="evalbar")
+        # Ligne centrale
+        self.canvas.create_line(x, h_total // 2, x + w, h_total // 2, fill="#888", width=2, tags="evalbar")
+
+        # Affichage du score sur la barre, aux extrémités
+        eval_text = f"{abs(score_aff):.2f}"
+        if score_aff >= 0:
+            # Score positif : en bas, texte noir
+            self.canvas.create_text(
+                x + w // 2, h_total - 10, text=eval_text, fill="#222", font=("Arial", 8, "bold"),
+                anchor="s", tags="evalbar"
+            )
+        else:
+            # Score négatif : en haut, texte blanc
+            self.canvas.create_text(
+                x + w // 2, 10, text=eval_text, fill="#f0f0f0", font=("Arial", 8, "bold"),
+                anchor="n", tags="evalbar"
+            )
+   
     def tourner_plateau(self):
         self.sens = "N" if self.sens == "B" else "B"
         # Il faut réafficher le plateau avec les bonnes listes (à adapter selon ton code principal)
@@ -64,8 +118,8 @@ class AfficheurEchiquier:
     def afficher_plateau(self, plateau, liste_blanc, liste_noire, colorier_x=None, colorier_y=None, colorier_x2=None, colorier_y2=None, colorier_x3=None, colorier_y3=None):
         self.canvas.delete("pieces")
         self.canvas.delete("ui")
-        self.canvas.create_image(0, 0, image=self.fond_img, anchor=tk.NW)
-
+        self.canvas.create_image(self.x_offset, 0, image=self.fond_img, anchor=tk.NW)
+        
         for i in range(8):
             for j in range(8):
                 # Inversion des coordonnées si sens == "N"
@@ -74,8 +128,8 @@ class AfficheurEchiquier:
                 else:
                     row, col = 7 - i, 7 - j
 
-                x = self.positions[col]
-                y = self.positions[row]
+                x = self.positions_x[col]
+                y = self.positions_y[row]
 
                 # Coloration des cases sélectionnées (adapter aussi)
                 def rotate(x, y):
@@ -103,7 +157,8 @@ class AfficheurEchiquier:
                     self.canvas.create_image(x, y, image=self.images[nom_fichier], anchor=tk.NW, tags="pieces")
 
         self.afficher_captures(liste_blanc, liste_noire)
-
+        self.afficher_barre_eval(self._dernier_score)
+ 
     def afficher_captures(self, liste_blanc, liste_noire):
         # Valeurs des pièces pour le calcul du score
         liste_total = {"P": 8, "C": 2, "F": 2, "T": 2, "D": 1, "R":1}
@@ -151,15 +206,15 @@ class AfficheurEchiquier:
         score_noir = -score_blanc
 
         # Affichage
-        self.canvas.create_text(x_text, y_blanc, anchor="nw", text="⚫ Noirs ont pris :", font=("Arial", 12), tags="ui")
-        self.canvas.create_text(x_text, y_blanc + 20, anchor="nw", text=blanc_txt or "—", font=("Arial", 16), tags="ui")
+        self.canvas.create_text(x_text + self.x_offset, y_blanc, anchor="nw", text="⚫ Noirs ont pris :", font=("Arial", 12), tags="ui", fill="white")
+        self.canvas.create_text(x_text + self.x_offset, y_blanc + 20, anchor="nw", text=blanc_txt or "—", font=("Arial", 16), tags="ui", fill="white")
         if score_blanc > 0:
-            self.canvas.create_text(x_text + 230, y_blanc + 20, anchor="nw", text=f"+{score_blanc}", font=("Arial", 14), fill="green", tags="ui")
+            self.canvas.create_text(x_text + self.x_offset + 230, y_blanc + 20, anchor="nw", text=f"+{score_blanc}", font=("Arial", 14), fill="white", tags="ui", )
 
-        self.canvas.create_text(x_text, y_noir, anchor="nw", text="⚪ Blancs ont pris :", font=("Arial", 12), tags="ui")
-        self.canvas.create_text(x_text, y_noir + 20, anchor="nw", text=noir_txt or "—", font=("Arial", 16), tags="ui")
+        self.canvas.create_text(x_text + self.x_offset, y_noir, anchor="nw", text="⚪ Blancs ont pris :", font=("Arial", 12), tags="ui", fill="white")
+        self.canvas.create_text(x_text + self.x_offset, y_noir + 20, anchor="nw", text=noir_txt or "—", font=("Arial", 16), tags="ui", fill="white")
         if score_noir > 0:
-            self.canvas.create_text(x_text + 230, y_noir + 20, anchor="nw", text=f"+{score_noir}", font=("Arial", 14), fill="green", tags="ui")
+            self.canvas.create_text(x_text + self.x_offset + 230, y_noir + 20, anchor="nw", text=f"+{score_noir}", font=("Arial", 14), tags="ui", fill="white")
 
     def attendre_click_case(self):
         self.click_coord = None
@@ -169,23 +224,31 @@ class AfficheurEchiquier:
         return self.click_coord  # retourne un tuple (x_case, y_case)
 
     def _on_click(self, event):
+        # N'accepte le clic que si c'est sur le canvas (pas sur un bouton)
+        if event.widget != self.canvas:
+            return
         x_pixel = event.x
         y_pixel = event.y
-        plateau_max_x = self.positions[-1] + self.case_size
-        plateau_max_y = self.positions[-1] + self.case_size
+        if x_pixel < self.x_offset:
+            return
+        plateau_max_x = self.positions_x[-1] + self.case_size
+        plateau_max_y = self.positions_y[-1] + self.case_size
         if x_pixel >= plateau_max_x or y_pixel >= plateau_max_y:
             return
 
-        for i, pos_x in enumerate(self.positions):
+        col = None
+        row = None
+        for i, pos_x in enumerate(self.positions_x):
             if x_pixel < pos_x + self.case_size:
                 col = i
                 break
-        for j, pos_y in enumerate(self.positions):
+        for j, pos_y in enumerate(self.positions_y):
             if y_pixel < pos_y + self.case_size:
                 row = j
                 break
+        if col is None or row is None:
+            return
 
-        # Adapter selon le sens
         if self.sens == "B":
             x_case, y_case = col, row
         else:
@@ -195,7 +258,6 @@ class AfficheurEchiquier:
         self.root.unbind("<Button-1>")
         self._clicked.set(True)
 
-
     def afficher_dot(self, plateau, n_case_1, l_case_1, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible):
         legal_cases_no_echecs_liste_copy = liste_moov(plateau, n_case_1, l_case_1, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible)
         for legals_cases in legal_cases_no_echecs_liste_copy:
@@ -204,8 +266,8 @@ class AfficheurEchiquier:
                 row, col = legals_cases  # ligne, colonne
             else:
                 row, col = 7 - legals_cases[0], 7 - legals_cases[1]
-            x = self.positions[col]
-            y = self.positions[row]
+            x = self.positions_x[col]
+            y = self.positions_y[row]
             if plateau[legals_cases[0]][legals_cases[1]] == [" ", ""]:
                 nom_fichier = "dot.png"
             else:
@@ -260,8 +322,8 @@ class AfficheurEchiquier:
             if resultat == 1:
                 for (i, j) in [roi_blanc_pos, roi_noir_pos]:
                     ri, rj = rotate(i, j, sens)
-                    x = self.positions[rj] + self.case_size * 0.5
-                    y = self.positions[ri] - self.case_size * 0.5
+                    x = self.positions_x[rj] + self.case_size * 0.5
+                    y = self.positions_y[ri] - self.case_size * 0.5
                     if y < 0:
                         y = -26
                     if x > 682:
@@ -274,8 +336,10 @@ class AfficheurEchiquier:
                 for nom_image, couleur in [("gagnant.png", gagnant), ("perdant.png", perdant)]:
                     i, j = positions[couleur]
                     ri, rj = rotate(i, j, sens)
-                    x = self.positions[rj] + self.case_size * 0.5
-                    y = self.positions[ri] - self.case_size * 0.5
+                    # Correction : vérifie que ri et rj sont dans [0, 7]
+                    print(positions, rj, ri)
+                    x = self.positions_x[rj] + self.case_size * 0.5
+                    y = self.positions_y[ri] - self.case_size * 0.5
                     if y < 0:
                         y = -26
                     if x > 682:
@@ -500,10 +564,6 @@ def is_legal_cavalier(n_case_1,l_case_1,n_case_2,l_case_2):
     if not((abs(n_case_2-n_case_1)==2 and abs(l_case_2-l_case_1)==1) or (abs(n_case_2-n_case_1)==1 and abs(l_case_2-l_case_1)==2)):
         return False
 
-
-
-
-
 def is_legal(plateau,n_case_1,l_case_1,n_case_2,l_case_2,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible,check_eat):
   
     if (plateau[n_case_1][l_case_1][0]==" ") or (plateau[n_case_1][l_case_1][1]==plateau[n_case_2][l_case_2][1]) or (plateau[n_case_1][l_case_1][1]!=joueur) or (n_case_1==n_case_2 and l_case_1==l_case_2) or ((not check_eat) and plateau[n_case_2][l_case_2][0] != " ") or (plateau[n_case_1][l_case_1][0]=="P" and is_legal_pion(plateau,n_case_1,l_case_1,n_case_2,l_case_2,is_en_passant_possible,en_passant_collone)==False) or (plateau[n_case_1][l_case_1][0]=="T" and is_legal_tour(plateau,n_case_1,l_case_1,n_case_2,l_case_2)==False) or (plateau[n_case_1][l_case_1][0]=="F" and is_legal_fou(plateau,n_case_1,l_case_1,n_case_2,l_case_2)==False) or (plateau[n_case_1][l_case_1][0]=="D" and is_legal_tour(plateau,n_case_1,l_case_1,n_case_2,l_case_2)==False and is_legal_fou(plateau,n_case_1,l_case_1,n_case_2,l_case_2)==False) or (plateau[n_case_1][l_case_1][0]=="R" and is_legal_roi(plateau,n_case_1,l_case_1,n_case_2,l_case_2,joueur,is_rock_possible)==False) or (plateau[n_case_1][l_case_1][0]=="C" and is_legal_cavalier(n_case_1,l_case_1,n_case_2,l_case_2)==False):
@@ -721,33 +781,66 @@ def plateau_to_fen(plateau, joueur, is_rock_possible, is_en_passant_possible, en
     # Les deux derniers champs (demi-coup, numéro du coup) sont mis à 0 et 1 par défaut
     fen = f"{fen_rows} {fen_joueur} {roque} {en_passant} 0 1"
     return fen
-mode_jeu, couleur_joueur, temps_stockfish, temps_sf_b, temps_sf_n = choisir_mode()
-joueur = "B"
-x_case = 0
-y_case = 0
-is_en_passant_possible = False
-en_passant_collone = 0
-is_rock_possible = [True,True,True,True]    #haut à gauche/haut à droite/bas à droite/bas à gauche
-legal_cases_no_echecs_liste_copy=[]
-draw_plateau(plateau)
-afficheur = AfficheurEchiquier()
-if mode_jeu in ("ordi", "sf_vs_sf"):
-    afficheur.auto_rotate.set(False)
-    afficheur.sens = couleur_joueur
-liste_blanc={"R":1,"D":1,"P":8,"F":2,"C":2,"T":2}
-liste_noire={"R":1,"D":1,"P":8,"F":2,"C":2,"T":2}
-afficheur.afficher_plateau(plateau, liste_blanc, liste_noire)
-end_game = False
-last_two_cases = [[0,0],[0,0]]
-first_play = True
-liste_plateaux = []
-liste_plateaux.append(copy.deepcopy(plateau))
-engine = chess.engine.SimpleEngine.popen_uci("stockfish\stockfish-windows-x86-64-avx2.exe") 
+
+def get_stockfish_eval(board, engine, temps=0.3):
+    # board : objet chess.Board (python-chess)
+    info = engine.analyse(board, chess.engine.Limit(time=temps))
+    score = info["score"].white().score(mate_score=10000)
+    # score > 0 : avantage blanc, score < 0 : avantage noir
+    return score
+
+def on_close():
+    global end_game, engine
+    end_game = True
+    try:
+        engine.quit()
+    except Exception:
+        pass
+    afficheur.root.destroy()
 
 
+def analyse_continue(afficheur, engine):
+    print("Thread analyse_continue lancé")
+    def worker():
+        global plateau, joueur, is_rock_possible, is_en_passant_possible, en_passant_collone, end_game
+        while not end_game:
+            print("Boucle analyse_continue")
+            try:
+                """if not hasattr(engine, "process") or engine.process is None:
+                    break"""
+                fen = plateau_to_fen(plateau, joueur, is_rock_possible, is_en_passant_possible, en_passant_collone)
+                board = chess.Board(fen)
+                info = engine.analyse(board, chess.engine.Limit(time=0.2))
+                score = info["score"].white().score(mate_score=10000)
+                print("Mise à jour barre avec score :", score)  # <-- ce print doit apparaître toutes les 0.3s
+                afficheur.root.after(0, afficheur.afficher_barre_eval, score)
+            except Exception as e:
+                print("Erreur dans analyse_continue :", e)
+                break
+            sleep(0.3)
+    threading.Thread(target=worker, daemon=True).start()
+   
 
 
-while end_game == False:
+def jouer_tour():
+    global end_game, joueur, first_play, last_two_cases, liste_plateaux
+    global is_en_passant_possible, en_passant_collone, is_rock_possible
+    global liste_blanc, liste_noire
+    global x_case, y_case, n_case_1, l_case_1, n_case_2, l_case_2
+    global mode_jeu, couleur_joueur
+    global temps_stockfish, temps_sf_b, temps_sf_n
+    global engine
+    global afficheur
+    global temps
+
+
+    if end_game:
+        return
+    fen = plateau_to_fen(plateau, joueur, is_rock_possible, is_en_passant_possible, en_passant_collone)
+    board = chess.Board(fen)
+    #score = get_stockfish_eval(board, engine, temps=0.05)
+    #afficheur.afficher_barre_eval(score)
+        
     if mode_jeu == "sf_vs_sf":
         # Détermine le temps selon le joueur
         if joueur == "B":
@@ -974,6 +1067,7 @@ while end_game == False:
     if afficheur.auto_rotate.get():
         afficheur.sens = joueur
     liste_plateaux.append(copy.deepcopy(plateau))
+    last_two_cases = [[l_case_1,n_case_1],[l_case_2,n_case_2]]
     if can_moov(plateau,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible) == True:
         
         if is_echecs(plateau, joueur, is_en_passant_possible, en_passant_collone, is_rock_possible, True):
@@ -988,21 +1082,26 @@ while end_game == False:
                 print("des blancs")
                 if not afficheur.auto_rotate.get():
                     afficheur.sens = couleur_joueur
+                    afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
                     afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="B", sens_affichage = couleur_joueur)
                 else:
                     afficheur.sens = "B"
+                    afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
                     afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="B", sens_affichage = "B")
             else:
                 print("des noirs")
                 if not afficheur.auto_rotate.get():
                     afficheur.sens = couleur_joueur
+                    afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
                     afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="N", sens_affichage = couleur_joueur)
                 else:
                     afficheur.sens = "N"
+                    afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
                     afficheur.afficher_resultat_fin_partie(plateau, resultat=0, joueur="N", sens_affichage = "N")
         else:
             afficheur.sens = "N" if joueur == "B" else "B"
             print("nul")
+            afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
             afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
         
         end_game = True
@@ -1020,18 +1119,60 @@ while end_game == False:
         end_game = True
         print("nul")
         afficheur.sens = "N" if joueur == "B" else "B"
+        afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
         afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
     if liste_plateaux.count(plateau) == 3:
-        afficheur.sens = "N" if joueur == "B" else "B"
+        if afficheur.auto_rotate.get():
+            afficheur.sens = "N" if joueur == "B" else "B"
+        else:
+            afficheur.sens = joueur
+        afficheur.afficher_plateau(plateau, liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
         afficheur.afficher_resultat_fin_partie(plateau, resultat=1, joueur=None)
         end_game = True
         print("nul")
 
     if not afficheur.auto_rotate.get():
         afficheur.sens = couleur_joueur
-    last_two_cases = [[l_case_1,n_case_1],[l_case_2,n_case_2]]
+    
     
     first_play = False
+    
+    afficheur.root.after(10, jouer_tour)
+ 
+
+mode_jeu, couleur_joueur, temps_stockfish, temps_sf_b, temps_sf_n = choisir_mode()
+joueur = "B"
+x_case = 0
+y_case = 0
+is_en_passant_possible = False
+en_passant_collone = 0
+is_rock_possible = [True,True,True,True]    #haut à gauche/haut à droite/bas à droite/bas à gauche
+legal_cases_no_echecs_liste_copy=[]
+draw_plateau(plateau)
+afficheur = AfficheurEchiquier()
+if mode_jeu in ("ordi", "sf_vs_sf"):
+    afficheur.auto_rotate.set(False)
+    afficheur.sens = couleur_joueur
+liste_blanc={"R":1,"D":1,"P":8,"F":2,"C":2,"T":2}
+liste_noire={"R":1,"D":1,"P":8,"F":2,"C":2,"T":2}
+afficheur.afficher_plateau(plateau, liste_blanc, liste_noire)
+end_game = False
+last_two_cases = [[0,0],[0,0]]
+first_play = True
+liste_plateaux = []
+liste_plateaux.append(copy.deepcopy(plateau))
+engine = chess.engine.SimpleEngine.popen_uci("stockfish/stockfish-windows-x86-64-avx2.exe") 
+
+
+
+def start_threads():
+    analyse_continue(afficheur, engine)
+    jouer_tour()
+
+afficheur.root.after(200, start_threads)
+afficheur.root.protocol("WM_DELETE_WINDOW", on_close)
+afficheur.lancer()
+
 
 afficheur.afficher_plateau(plateau,liste_blanc, liste_noire, None, None, last_two_cases[0][0], last_two_cases[0][1], last_two_cases[1][0], last_two_cases[1][1])
 x_case, y_case = afficheur.attendre_click_case()
