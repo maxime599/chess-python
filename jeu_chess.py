@@ -619,25 +619,52 @@ def is_legal_fou(plateau,n_case_1,l_case_1,n_case_2,l_case_2):
     )
 
 
-def is_legal_roi(plateau,n_case_1,l_case_1,n_case_2,l_case_2,joueur,is_rock_possible):
-    if joueur=="B":
-        if is_rock_possible[3]==True and l_case_1-l_case_2==2 and n_case_2==7 and plateau[7][l_case_1-1][0]==" " and plateau[7][l_case_1-2][0]==" " and plateau[7][l_case_1-3][0]==" ":
-            
-            return True 
-        if is_rock_possible[2]==True and l_case_2-l_case_1==2 and n_case_2==7 and plateau[7][l_case_1+1][0]==" " and plateau[7][l_case_1+2][0]==" ":
-            
-            return True 
+def is_legal_roi(plateau, n_case_1, l_case_1, n_case_2, l_case_2, joueur, is_rock_possible):
+    def case_sous_echec(n, l):
+        # On teste si la case (n, l) est attaquée par l'adversaire
+        adv = "N" if joueur == "B" else "B"
+        for i in range(8):
+            for j in range(8):
+                if plateau[i][j][1] == adv and plateau[i][j][0] != " ":
+                    if is_legal(plateau, i, j, n, l, adv, False, 0, [False]*4, True):
+                        return True
+        return False
 
+    if joueur == "B":
+        # Grand roque
+        if is_rock_possible[3] and l_case_1 - l_case_2 == 2 and n_case_2 == 7 and \
+           plateau[7][l_case_1-1][0] == " " and plateau[7][l_case_1-2][0] == " " and plateau[7][l_case_1-3][0] == " ":
+            # Vérifie que le roi n'est pas en échec sur les cases traversées
+            for col in [l_case_1, l_case_1-1, l_case_1-2]:
+                if case_sous_echec(7, col):
+                    return False
+            return True
+        # Petit roque
+        if is_rock_possible[2] and l_case_2 - l_case_1 == 2 and n_case_2 == 7 and \
+           plateau[7][l_case_1+1][0] == " " and plateau[7][l_case_1+2][0] == " ":
+            for col in [l_case_1, l_case_1+1, l_case_1+2]:
+                if case_sous_echec(7, col):
+                    return False
+            return True
     else:
-        if is_rock_possible[0]==True and l_case_1-l_case_2==2 and n_case_2==0 and plateau[0][l_case_1-1][0]==" " and plateau[0][l_case_1-2][0]==" " and plateau[0][l_case_1-3][0]==" ":
-            
-            return True 
-        if is_rock_possible[1]==True and l_case_2-l_case_1==2 and n_case_2==0 and plateau[0][l_case_1+1][0]==" " and plateau[0][l_case_1+2][0]==" ":
-            
-            return True 
+        # Grand roque
+        if is_rock_possible[0] and l_case_1 - l_case_2 == 2 and n_case_2 == 0 and \
+           plateau[0][l_case_1-1][0] == " " and plateau[0][l_case_1-2][0] == " " and plateau[0][l_case_1-3][0] == " ":
+            for col in [l_case_1, l_case_1-1, l_case_1-2]:
+                if case_sous_echec(0, col):
+                    return False
+            return True
+        # Petit roque
+        if is_rock_possible[1] and l_case_2 - l_case_1 == 2 and n_case_2 == 0 and \
+           plateau[0][l_case_1+1][0] == " " and plateau[0][l_case_1+2][0] == " ":
+            for col in [l_case_1, l_case_1+1, l_case_1+2]:
+                if case_sous_echec(0, col):
+                    return False
+            return True
 
     if abs(n_case_1-n_case_2)>1 or abs(l_case_1-l_case_2)>1:
         return False
+    return True
 
 def is_legal_cavalier(n_case_1,l_case_1,n_case_2,l_case_2):
     if not((abs(n_case_2-n_case_1)==2 and abs(l_case_2-l_case_1)==1) or (abs(n_case_2-n_case_1)==1 and abs(l_case_2-l_case_1)==2)):
@@ -710,11 +737,12 @@ def liste_moov(plateau,n_case_1,l_case_1,joueur,is_en_passant_possible,en_passan
     
 
     legal_cases_no_echecs_liste_copy = [row[:] for row in legal_cases_no_echecs_liste]
-    if plateau[n_case_1][l_case_1] == ["R",joueur] and is_echecs(plateau,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible):
+    if plateau[n_case_1][l_case_1] == ["R",joueur] and is_echecs(plateau,joueur,is_en_passant_possible,en_passant_collone,is_rock_possible,True):
         for legals_cases in legal_cases_no_echecs_liste_copy:
             if legals_cases[1] == l_case_1+2 or legals_cases[1] == l_case_1-2:
+                print("ici")
                 legal_cases_no_echecs_liste.remove(legals_cases)
-            
+    print(legal_cases_no_echecs_liste) 
             
 
     for legals_cases in legal_cases_no_echecs_liste:
@@ -884,8 +912,6 @@ def analyse_continue(afficheur, engine):
         global plateau, joueur, is_rock_possible, is_en_passant_possible, en_passant_collone, end_game
         while not end_game:
             try:
-                """if not hasattr(engine, "process") or engine.process is None:
-                    break"""
                 fen = plateau_to_fen(plateau, joueur, is_rock_possible, is_en_passant_possible, en_passant_collone)
                 board = chess.Board(fen)
                 info = engine.analyse(board, chess.engine.Limit(time=0.2))
